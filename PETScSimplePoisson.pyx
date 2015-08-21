@@ -46,16 +46,12 @@ cdef class PETScPoisson(object):
         
     
     @cython.boundscheck(False)
-    def formMat(self, Vec X, Mat A):
+    def formMat(self, Mat A):
         cdef np.int64_t i, j
         cdef np.int64_t ix, iy, jx, jy
         cdef np.int64_t xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-        self.da1.globalToLocal(X, self.localX)
-        
-        cdef np.ndarray[np.float64_t, ndim=2] x = self.da1.getVecArray(self.localX)[...]
         
         cdef np.float64_t lapx_fac = 1. / self.hx**2
         cdef np.float64_t lapy_fac = 1. / self.hy**2
@@ -115,6 +111,6 @@ cdef class PETScPoisson(object):
                 jx = j-ys+2
                 jy = j-ys
                 
-                b[iy,jy] =x[ix,jx]
+                b[iy,jy] = x[ix,jx]
                 
     

@@ -289,7 +289,7 @@ class petscMHD2D(object):
         self.ksp.getPC().setFactorSolverPackage(solver_package)
 #         self.ksp.setNullSpace(self.poisson_nullspace)
         
-        self.petsc_poisson.formMat(self.J, self.Pm)
+        self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.J, self.Pb)
         self.ksp.solve(self.Pb, self.A)
         
@@ -305,7 +305,7 @@ class petscMHD2D(object):
         self.ksp.getPC().setFactorSolverPackage(solver_package)
 #         self.ksp.setNullSpace(self.poisson_nullspace)
         
-        self.petsc_poisson.formMat(self.O, self.Pm)
+        self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.O, self.Pb)
         self.ksp.solve(self.Pb, self.P)
         
