@@ -155,7 +155,7 @@ class PlotMHD2D(object):
         
         self.axes["A"].set_title('$A (x,y)$')
         self.axes["J"].set_title('$J (x,y)$')
-        self.axes["P"].set_title('$\Psi (x,y)$')
+        self.axes["P"].set_title('$\Phi (x,y)$')
         self.axes["O"].set_title('$\Omega (x,y)$')
         
         self.pcms["P"] = self.axes["P"].pcolormesh(self.xpc, self.ypc, self.P.T, norm=self.Pnorm)
