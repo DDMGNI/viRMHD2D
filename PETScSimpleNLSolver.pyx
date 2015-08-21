@@ -97,11 +97,9 @@ cdef class PETScSolver(object):
         cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
-        cdef np.float64_t time_fac = 1.0 / (16. * self.ht)
-        cdef np.float64_t arak_fac = 0.5 / (12. * self.hx * self.hy)
-        
-        cdef np.float64_t lapx_fac = 1.0 / self.hx**2
-        cdef np.float64_t lapy_fac = 1.0 / self.hy**2
+        cdef double arak_fac = 0.5 * self.hx_inv * self.hy_inv / 12.
+        cdef double lapx_fac = self.hx_inv**2
+        cdef double lapy_fac = self.hy_inv**2
         
         
         A.zeroEntries()
@@ -125,19 +123,19 @@ cdef class PETScSolver(object):
                 # dA/dt + [P, dA] 
                 col.field = 0
                 for index, value in [
-                        ((i-1, j-1), 1. * time_fac + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i-1, j  ), 2. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i-1, j+1), 1. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
-                        ((i,   j-1), 2. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j  ), 4. * time_fac),
-                        ((i,   j+1), 2. * time_fac + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
-                        ((i+1, j-1), 1. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i+1, j  ), 2. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
-                        ((i+1, j+1), 1. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
+                        ((i-1, j-1), + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i-1, j  ), + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                     + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
+                        ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                     - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i,   j  ), self.ht_inv),
+                        ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                     + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
+                        ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i+1, j  ), - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                     - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
+                        ((i+1, j+1), - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
                     ]:
   
                     col.index = index
@@ -169,31 +167,23 @@ cdef class PETScSolver(object):
                 # - Delta A - J = - R_A
                 row.field = 1
                 
-                if i == 0 and j == 0:
-                    A.setValueStencil(row, row, 1.)
+                # - Delta A 
+                col.field = 0
+                for index, value in [
+                    ((i,   j-1),                 - 1. * lapy_fac),
+                    ((i-1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
+                    ((i+1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j+1),                 - 1. * lapy_fac),
+                    ]:
                     
-                else:
-                    # - Delta A 
-                    col.field = 0
-                    for index, value in [
-                        ((i,   j-1),                 - 1. * lapy_fac),
-                        ((i-1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
-                        ((i+1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j+1),                 - 1. * lapy_fac),
-                        ]:
-                        
-                        col.index = index
-                        A.setValueStencil(row, col, value)
-                
-                    # - J
-                    col.field = 1
-                    for index, value in [
-                            ((i,   j  ), 1.),
-                        ]:
-                        
-                        col.index = index
-                        A.setValueStencil(row, col, - value)
+                    col.index = index
+                    A.setValueStencil(row, col, value)
+            
+                # - J
+                col.field = 1
+                col.index = (i,j)
+                A.setValueStencil(row, col, - 1.)
                 
                 
                 
@@ -201,31 +191,23 @@ cdef class PETScSolver(object):
                 # - Delta P - O = - R_P
                 row.field = 2
                 
-                if i == 0 and j == 0:
-                    A.setValueStencil(row, row, 1.)
-
-                else:
-                    # - Delta P
-                    col.field = 2
-                    for index, value in [
-                        ((i,   j-1),                 - 1. * lapy_fac),
-                        ((i-1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
-                        ((i+1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j+1),                 - 1. * lapy_fac),
-                        ]:
-                        
-                        col.index = index
-                        A.setValueStencil(row, col, value)
-                
-                    # - O
-                    col.field = 3
-                    for index, value in [
-                            ((i,   j  ), 1.),
-                        ]:
-                        
-                        col.index = index
-                        A.setValueStencil(row, col, - value)
+                # - Delta P
+                col.field = 2
+                for index, value in [
+                    ((i,   j-1),                 - 1. * lapy_fac),
+                    ((i-1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
+                    ((i+1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j+1),                 - 1. * lapy_fac),
+                    ]:
+                    
+                    col.index = index
+                    A.setValueStencil(row, col, value)
+            
+                # - O
+                col.field = 3
+                col.index = (i,j)
+                A.setValueStencil(row, col, - 1.)
                 
                 
                 
@@ -300,19 +282,19 @@ cdef class PETScSolver(object):
                 # dO/dt + [P, dO] 
                 col.field = 3
                 for index, value in [
-                        ((i-1, j-1), 1. * time_fac + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i-1, j  ), 2. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i-1, j+1), 1. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
-                        ((i,   j-1), 2. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j  ), 4. * time_fac),
-                        ((i,   j+1), 2. * time_fac + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
-                        ((i+1, j-1), 1. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i+1, j  ), 2. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
-                        ((i+1, j+1), 1. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
+                        ((i-1, j-1), + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i-1, j  ), + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                     + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
+                        ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                     - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i,   j  ), self.ht_inv),
+                        ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                     + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
+                        ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i+1, j  ), - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                     - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
+                        ((i+1, j+1), - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
                     ]:
 
                     col.index = index
@@ -358,8 +340,6 @@ cdef class PETScSolver(object):
         cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
-        
-        
         for i in np.arange(xs, xe):
             ix = i-xs+2
             iy = i-xs
@@ -370,8 +350,7 @@ cdef class PETScSolver(object):
                 
                 # magnetic potential
                 y[iy, jy, 0] = \
-                             + self.derivatives.dt(Ap, ix, jx) \
-                             - self.derivatives.dt(Ah, ix, jx) \
+                             + (Ap[ix,jx] - Ah[ix,jx] ) * self.ht_inv \
                              + self.derivatives.arakawa(P_ave, A_ave, ix, jx)
                 
                 # current density
@@ -380,18 +359,13 @@ cdef class PETScSolver(object):
                              - Jp[ix, jx]
                 
                 # streaming function
-                if i == 0 and j == 0:
-                    y[iy, jy, 2] = Pp[ix,jx]
-                
-                else:
-                    y[iy, jy, 2] = \
-                                 - self.derivatives.laplace(Pp, ix, jx) \
-                                 - Op[ix, jx]
+                y[iy, jy, 2] = \
+                             - self.derivatives.laplace(Pp, ix, jx) \
+                             - Op[ix, jx]
                 
                 # vorticity
                 y[iy, jy, 3] = \
-                             + self.derivatives.dt(Op, ix, jx) \
-                             - self.derivatives.dt(Oh, ix, jx) \
+                             + (Op[ix,jx] - Oh[ix,jx] ) * self.ht_inv \
                              + self.derivatives.arakawa(P_ave, O_ave, ix, jx) \
                              + self.derivatives.arakawa(J_ave, A_ave, ix, jx)
 
