@@ -82,23 +82,19 @@ class Diagnostics(object):
         self.Vx = np.zeros((self.nx, self.ny))
         self.Vy = np.zeros((self.nx, self.ny))
         
-        self.E_magnetic  = 0.0
-        self.E_velocity  = 0.0
+        self.m_energy   = 0.0
+        self.k_energy   = 0.0
+        self.energy     = 0.0
+        self.c_helicity = 0.0
+        self.m_helicity = 0.0
         
-        self.energy   = 0.0
-        self.helicity = 0.0
+        self.energy_init      = 0.0
+        self.c_helicity_init  = 0.0
+        self.m_helicity_init  = 0.0
         
-        self.E0       = 0.0
-        self.H0       = 0.0
-        
-        self.L1_magnetic_0 = 0.0
-        self.L1_velocity_0 = 0.0
-        self.L2_magnetic_0 = 0.0
-        self.L2_velocity_0 = 0.0
-        
-        self.E_error  = 0.0
-        self.H_error  = 0.0
-        
+        self.energy_error     = 0.0
+        self.c_helicity_error = 0.0
+        self.m_helicity_error = 0.0
         
         self.read_from_hdf5(0)
         self.update_invariants(0)
@@ -119,86 +115,52 @@ class Diagnostics(object):
     
     def update_invariants(self, iTime):
         
-        self.E_magnetic = 0.0
-        self.E_velocity = 0.0
-        helicity = 0.0
+        self.m_energy   = 0.0
+        self.k_energy   = 0.0
+        self.c_helicity = 0.0
+        self.m_helicity = 0.0
         
         for ix in range(0, self.nx):
-            ixp = (ix+1) % self.nx
-            
             for iy in range(0, self.ny):
-                iyp = (iy+1) % self.ny
                 
-                self.E_magnetic += self.A[ix,iy] * self.J[ix,iy]
+                self.m_energy += self.A[ix,iy] * self.J[ix,iy]
+                self.k_energy += self.P[ix,iy] * self.O[ix,iy]
 
-# #                 self.E_magnetic += self.Bx[ixp,iy]**2 + self.Bx[ix,iy]**2 + self.Bx[ixp,iyp]**2 + self.Bx[ix,iyp]**2 \
-# #                                  + self.By[ixp,iy]**2 + self.By[ix,iy]**2 + self.By[ixp,iyp]**2 + self.By[ix,iyp]**2
-#                                 
-# #                 self.E_magnetic += (self.Bx[ixp,iy] + self.Bx[ix,iy] + self.Bx[ixp,iyp] + self.Bx[ix,iyp])**2 \
-# #                                  + (self.By[ixp,iy] + self.By[ix,iy] + self.By[ixp,iyp] + self.By[ix,iyp])**2
-                                
-#                 self.E_magnetic += (self.A[ixp,iy] - self.A[ix,iy] + self.A[ixp,iyp] - self.A[ix,iyp])**2 / self.hx**2 \
-#                                  + (self.A[ix,iyp] - self.A[ix,iy] + self.A[ixp,iyp] - self.A[ixp,iy])**2 / self.hy**2
+                self.c_helicity += self.A[ix,iy] * self.O[ix,iy]
+                self.m_helicity += self.A[ix,iy]
                 
-#                 self.E_magnetic += (self.A[ixp,iy ] - self.A[ix ,iy ])**2 / self.hx**2 \
-#                                  + (self.A[ixp,iyp] - self.A[ix ,iyp])**2 / self.hx**2 \
-#                                  + (self.A[ix, iyp] - self.A[ix ,iy ])**2 / self.hy**2 \
-#                                  + (self.A[ixp,iyp] - self.A[ixp,iy ])**2 / self.hy**2
-                                
-                self.E_velocity += self.P[ix,iy] * self.O[ix,iy]
-
-# #                 self.E_velocity += self.Vx[ixp,iy]**2 + self.Vx[ix,iy]**2 + self.Vx[ixp,iyp]**2 + self.Vx[ix,iyp]**2 \
-# #                                  + self.Vy[ixp,iy]**2 + self.Vy[ix,iy]**2 + self.Vy[ixp,iyp]**2 + self.Vy[ix,iyp]**2
-# 
-# #                 self.E_velocity += (self.Vx[ixp,iy] + self.Vx[ix,iy] + self.Vx[ixp,iyp] + self.Vx[ix,iyp])**2 \
-# #                                  + (self.Vy[ixp,iy] + self.Vy[ix,iy] + self.Vy[ixp,iyp] + self.Vy[ix,iyp])**2
-
-#                 self.E_velocity += (self.P[ixp,iy] - self.P[ix,iy] + self.P[ixp,iyp] - self.P[ix,iyp])**2 / self.hx**2 \
-#                                  + (self.P[ix,iyp] - self.P[ix,iy] + self.P[ixp,iyp] - self.P[ixp,iy])**2 / self.hy**2
-                
-#                 self.E_velocity += (self.P[ixp,iy ] - self.P[ix ,iy ])**2 / self.hx**2 \
-#                                  + (self.P[ixp,iyp] - self.P[ix ,iyp])**2 / self.hx**2 \
-#                                  + (self.P[ix, iyp] - self.P[ix ,iy ])**2 / self.hy**2 \
-#                                  + (self.P[ixp,iyp] - self.P[ixp,iy ])**2 / self.hy**2
-                
-                helicity += self.A[ix,iy] * self.O[ix,iy]
-#                 helicity += self.A[ix,iy] # cross helicity
-                
-#                 helicity += (self.A[ixp,iy] - self.A[ix,iy] + self.A[ixp,iyp] - self.A[ix,iyp]) / self.hx \
-#                           * (self.P[ixp,iy] - self.P[ix,iy] + self.P[ixp,iyp] - self.P[ix,iyp]) / self.hx
-#                            
-#                 helicity += (self.A[ix,iyp] - self.A[ix,iy] + self.A[ixp,iyp] - self.A[ixp,iy]) / self.hy \
-#                           * (self.P[ix,iyp] - self.P[ix,iy] + self.P[ixp,iyp] - self.P[ixp,iy]) / self.hy
-                
-#                 helicity += (self.A[ixp,iy ] - self.A[ix,iy ]) * (self.P[ixp,iy ] - self.P[ix,iy ]) / self.hx**2 \
-#                           + (self.A[ixp,iyp] - self.A[ix,iyp]) * (self.P[ixp,iyp] - self.P[ix,iyp]) / self.hx**2
-#                           
-#                 helicity += (self.A[ix,iyp ] - self.A[ix,iy ]) * (self.P[ix,iyp ] - self.P[ix,iy ]) / self.hy**2 \
-#                           + (self.A[ixp,iyp] - self.A[ixp,iy]) * (self.P[ixp,iyp] - self.P[ixp,iy]) / self.hy**2
-                
-                
-#         self.E_magnetic *= 0.5 * 0.25 * self.hx * self.hy
-#         self.E_velocity *= 0.5 * 0.25 * self.hx * self.hy
         
-        self.E_magnetic *= 0.5 * self.hx * self.hy
-        self.E_velocity *= 0.5 * self.hx * self.hy
+        self.m_energy *= 0.5 * self.hx * self.hy
+        self.k_energy *= 0.5 * self.hx * self.hy
         
-        self.energy   = self.E_magnetic + self.E_velocity 
-        self.helicity = helicity * self.hx * self.hy
+        self.c_helicity  *= self.hx * self.hy
+        self.m_helicity  *= self.hx * self.hy
+        
+        self.energy   = self.m_energy + self.k_energy 
     
         
         if iTime == 0:
-            self.E0 = self.energy
-            self.H0 = self.helicity
+            self.energy_init      = self.energy
+            self.c_helicity_init  = self.c_helicity
+            self.m_helicity_init  = self.m_helicity
             
-            self.E_error  = 0.0
-            self.H_error  = 0.0
+            self.energy_error     = 0.0
+            self.c_helicity_error = 0.0
+            self.m_helicity_error = 0.0
         
         else:
-            self.E_error = (self.energy   - self.E0) / self.E0
-            
-            if self.H0 < 1E-10:
-                self.H_error = (self.helicity - self.H0)
+            if self.energy_init < 1E-10:
+                self.energy_error = (self.energy   - self.energy_init)
             else:
-                self.H_error = (self.helicity - self.H0) / self.H0
+                self.energy_error = (self.energy   - self.energy_init) / self.energy_init
+            
+            if self.c_helicity_init < 1E-10:
+                self.c_helicity_error = (self.c_helicity - self.c_helicity_init)
+            else:
+                self.c_helicity_error = (self.c_helicity - self.c_helicity_init) / self.c_helicity_init
+            
+            if self.m_helicity_init < 1E-10:
+                self.m_helicity_error = (self.m_helicity - self.m_helicity_init)
+            else:
+                self.m_helicity_error = (self.m_helicity - self.m_helicity_init) / self.m_helicity_init
         

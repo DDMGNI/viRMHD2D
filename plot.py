@@ -35,17 +35,11 @@ class PlotMHD2D(object):
         self.diagnostics = diagnostics
         
         
-#        self.L1_magnetic = np.zeros_like(diagnostics.tGrid)
-#        self.L1_velocity = np.zeros_like(diagnostics.tGrid)
-#        
-#        self.L2_magnetic = np.zeros_like(diagnostics.tGrid)
-#        self.L2_velocity = np.zeros_like(diagnostics.tGrid)
-        
-        self.E_velocity  = np.zeros_like(diagnostics.tGrid)
-        self.E_magnetic  = np.zeros_like(diagnostics.tGrid)
-        
+        self.k_energy    = np.zeros_like(diagnostics.tGrid)
+        self.m_energy    = np.zeros_like(diagnostics.tGrid)
         self.energy      = np.zeros_like(diagnostics.tGrid)
-        self.helicity    = np.zeros_like(diagnostics.tGrid)
+        self.c_helicity  = np.zeros_like(diagnostics.tGrid)
+        self.m_helicity  = np.zeros_like(diagnostics.tGrid)
         
         
         self.x = np.zeros(diagnostics.nx+1)
@@ -124,10 +118,6 @@ class PlotMHD2D(object):
         self.axes["Evel"]  = plt.subplot(gs[1,5])
         self.axes["E"]     = plt.subplot(gs[2,5])
         self.axes["H"]     = plt.subplot(gs[3,5])
-#        self.axes["L1mag"] = plt.subplot(gs[0,4])
-#        self.axes["L1vel"] = plt.subplot(gs[1,4])
-#        self.axes["L2mag"] = plt.subplot(gs[2,4])
-#        self.axes["L2vel"] = plt.subplot(gs[3,4])
         
         self.axes["Bx"].set_xlim((self.x[0], self.x[-1]))
         self.axes["Bx"].set_ylim((self.y[0], self.y[-1])) 
@@ -164,45 +154,25 @@ class PlotMHD2D(object):
         
         tStart, tEnd, xStart, xEnd = self.get_timerange()
 
-        self.lines["Emag" ], = self.axes["Emag" ].plot(self.diagnostics.tGrid[tStart:tEnd], self.E_magnetic [tStart:tEnd])
-        self.lines["Evel" ], = self.axes["Evel" ].plot(self.diagnostics.tGrid[tStart:tEnd], self.E_velocity [tStart:tEnd])
+        self.lines["Emag" ], = self.axes["Emag" ].plot(self.diagnostics.tGrid[tStart:tEnd], self.m_energy [tStart:tEnd])
+        self.lines["Evel" ], = self.axes["Evel" ].plot(self.diagnostics.tGrid[tStart:tEnd], self.k_energy [tStart:tEnd])
         self.lines["E"    ], = self.axes["E"    ].plot(self.diagnostics.tGrid[tStart:tEnd], self.energy     [tStart:tEnd])
-        self.lines["H"    ], = self.axes["H"    ].plot(self.diagnostics.tGrid[tStart:tEnd], self.helicity   [tStart:tEnd])
-        
-#        self.lines["L1mag"], = self.axes["L1mag"].plot(self.diagnostics.tGrid[tStart:tEnd], self.L1_magnetic[tStart:tEnd])
-#        self.lines["L1vel"], = self.axes["L1vel"].plot(self.diagnostics.tGrid[tStart:tEnd], self.L1_velocity[tStart:tEnd])
-#        self.lines["L2mag"], = self.axes["L2mag"].plot(self.diagnostics.tGrid[tStart:tEnd], self.L2_magnetic[tStart:tEnd])
-#        self.lines["L2vel"], = self.axes["L2vel"].plot(self.diagnostics.tGrid[tStart:tEnd], self.L2_velocity[tStart:tEnd])
+        self.lines["H"    ], = self.axes["H"    ].plot(self.diagnostics.tGrid[tStart:tEnd], self.c_helicity   [tStart:tEnd])
         
         self.axes["Emag"].set_title('$E_{B} (t)$')
         self.axes["Evel"].set_title('$E_{V} (t)$')
         self.axes["E"].set_title('$\Delta E (t)$')
         self.axes["H"].set_title('$\Delta H (t)$')
         
-#        self.axes["L1mag"].set_title('$\Delta L_{1}^{B} (t)$')
-#        self.axes["L1vel"].set_title('$\Delta L_{1}^{V} (t)$')
-#        self.axes["L2mag"].set_title('$\Delta L_{2}^{B} (t)$')
-#        self.axes["L2vel"].set_title('$\Delta L_{2}^{V} (t)$')
-
         self.axes["Emag" ].set_xlim((xStart,xEnd)) 
         self.axes["Evel" ].set_xlim((xStart,xEnd)) 
         self.axes["E"    ].set_xlim((xStart,xEnd)) 
         self.axes["H"    ].set_xlim((xStart,xEnd)) 
         
-#        self.axes["L1mag"].set_xlim((xStart,xEnd)) 
-#        self.axes["L1vel"].set_xlim((xStart,xEnd)) 
-#        self.axes["L2mag"].set_xlim((xStart,xEnd)) 
-#        self.axes["L2vel"].set_xlim((xStart,xEnd)) 
-        
         self.axes["Emag" ].yaxis.set_major_formatter(majorFormatter)
         self.axes["Evel" ].yaxis.set_major_formatter(majorFormatter)
         self.axes["E"    ].yaxis.set_major_formatter(majorFormatter)
         self.axes["H"    ].yaxis.set_major_formatter(majorFormatter)
-        
-#        self.axes["L1mag"].yaxis.set_major_formatter(majorFormatter)
-#        self.axes["L1vel"].yaxis.set_major_formatter(majorFormatter)
-#        self.axes["L2mag"].yaxis.set_major_formatter(majorFormatter)
-#        self.axes["L2vel"].yaxis.set_major_formatter(majorFormatter)
         
         # switch off some ticks
         plt.setp(self.axes["Bx"   ].get_xticklabels(), visible=False)
@@ -213,9 +183,6 @@ class PlotMHD2D(object):
         plt.setp(self.axes["Emag" ].get_xticklabels(), visible=False)
         plt.setp(self.axes["Evel" ].get_xticklabels(), visible=False)
         plt.setp(self.axes["E"    ].get_xticklabels(), visible=False)
-#        plt.setp(self.axes["L1mag"].get_xticklabels(), visible=False)
-#        plt.setp(self.axes["L1vel"].get_xticklabels(), visible=False)
-#        plt.setp(self.axes["L2mag"].get_xticklabels(), visible=False)
         
         
         self.update()
@@ -323,33 +290,18 @@ class PlotMHD2D(object):
         
         self.conts["A"] = self.axes["A"].contourf(self.x, self.y, self.A.T, 20)
         self.conts["J"] = self.axes["J"].contourf(self.x, self.y, self.J.T, 20)
-#         self.conts["P"] = self.axes["P"].contourf(self.x, self.y, self.P.T, 20)
-#         self.conts["O"] = self.axes["O"].contourf(self.x, self.y, self.O.T, 20)
-        
-#        self.conts["A"] = self.axes["A"].contour (self.diagnostics.xGrid, self.diagnostics.yGrid, self.diagnostics.A.T, 20)
-#        self.conts["O"] = self.axes["O"].contourf(self.diagnostics.xGrid, self.diagnostics.yGrid, self.diagnostics.O.T, 20)
-        
-#         self.conts["Bx"] = self.axes["Bx"].contourf(self.x, self.y, self.Bx.T, 20)
-#         self.conts["By"] = self.axes["By"].contourf(self.x, self.y, self.By.T, 20)
-#         self.conts["Vx"] = self.axes["Vx"].contourf(self.x, self.y, self.Vx.T, 20)
-#         self.conts["Vy"] = self.axes["Vy"].contourf(self.x, self.y, self.Vy.T, 20)
-        
-#         self.conts["Bx"] = self.axes["Bx"].contourf(self.x, self.y, self.Bx.T, 20, norm=self.Bnorm)
-#         self.conts["By"] = self.axes["By"].contourf(self.x, self.y, self.By.T, 20, norm=self.Bnorm)
-#         self.conts["Vx"] = self.axes["Vx"].contourf(self.x, self.y, self.Vx.T, 20, norm=self.Vnorm)
-#         self.conts["Vy"] = self.axes["Vy"].contourf(self.x, self.y, self.Vy.T, 20, norm=self.Vnorm)
         
         
         tStart, tEnd, xStart, xEnd = self.get_timerange()
         
         self.lines["Emag"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-        self.lines["Emag"].set_ydata(self.E_magnetic[tStart:tEnd])
+        self.lines["Emag"].set_ydata(self.m_energy[tStart:tEnd])
         self.axes ["Emag"].relim()
         self.axes ["Emag"].autoscale_view()
         self.axes ["Emag"].set_xlim((xStart,xEnd)) 
         
         self.lines["Evel"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-        self.lines["Evel"].set_ydata(self.E_velocity[tStart:tEnd])
+        self.lines["Evel"].set_ydata(self.k_energy[tStart:tEnd])
         self.axes ["Evel"].relim()
         self.axes ["Evel"].autoscale_view()
         self.axes ["Evel"].set_xlim((xStart,xEnd)) 
@@ -361,34 +313,10 @@ class PlotMHD2D(object):
         self.axes ["E"].set_xlim((xStart,xEnd)) 
         
         self.lines["H"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-        self.lines["H"].set_ydata(self.helicity[tStart:tEnd])
+        self.lines["H"].set_ydata(self.c_helicity[tStart:tEnd])
         self.axes ["H"].relim()
         self.axes ["H"].autoscale_view()
         self.axes ["H"].set_xlim((xStart,xEnd)) 
-        
-#        self.lines["L1mag"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-#        self.lines["L1mag"].set_ydata(self.L1_magnetic[tStart:tEnd])
-#        self.axes ["L1mag"].relim()
-#        self.axes ["L1mag"].autoscale_view()
-#        self.axes ["L1mag"].set_xlim((xStart,xEnd)) 
-#        
-#        self.lines["L1vel"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-#        self.lines["L1vel"].set_ydata(self.L1_velocity[tStart:tEnd])
-#        self.axes ["L1vel"].relim()
-#        self.axes ["L1vel"].autoscale_view()
-#        self.axes ["L1vel"].set_xlim((xStart,xEnd)) 
-#        
-#        self.lines["L2mag"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-#        self.lines["L2mag"].set_ydata(self.L2_magnetic[tStart:tEnd])
-#        self.axes ["L2mag"].relim()
-#        self.axes ["L2mag"].autoscale_view()
-#        self.axes ["L2mag"].set_xlim((xStart,xEnd)) 
-#        
-#        self.lines["L2vel"].set_xdata(self.diagnostics.tGrid[tStart:tEnd])
-#        self.lines["L2vel"].set_ydata(self.L2_velocity[tStart:tEnd])
-#        self.axes ["L2vel"].relim()
-#        self.axes ["L2vel"].autoscale_view()
-#        self.axes ["L2vel"].set_xlim((xStart,xEnd)) 
         
         
         plt.draw()
@@ -399,15 +327,11 @@ class PlotMHD2D(object):
     
     def add_timepoint(self):
         
-        self.E_magnetic [self.iTime] = self.diagnostics.E_magnetic
-        self.E_velocity [self.iTime] = self.diagnostics.E_velocity
-        self.energy     [self.iTime] = self.diagnostics.E_error
-        self.helicity   [self.iTime] = self.diagnostics.H_error
-        
-#        self.L1_magnetic[self.iTime] = self.diagnostics.L1_magnetic_error
-#        self.L1_velocity[self.iTime] = self.diagnostics.L1_velocity_error
-#        self.L2_magnetic[self.iTime] = self.diagnostics.L2_magnetic_error
-#        self.L2_velocity[self.iTime] = self.diagnostics.L2_velocity_error
+        self.m_energy  [self.iTime] = self.diagnostics.m_energy
+        self.k_energy  [self.iTime] = self.diagnostics.k_energy
+        self.energy    [self.iTime] = self.diagnostics.energy_error
+        self.c_helicity[self.iTime] = self.diagnostics.c_helicity_error
+        self.m_helicity[self.iTime] = self.diagnostics.m_helicity_error
         
         self.title.set_text('t = %1.2f' % (self.diagnostics.tGrid[self.iTime]))
         
