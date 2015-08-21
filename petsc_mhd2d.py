@@ -18,7 +18,7 @@ from config import Config
 
 from PETScDerivatives       import PETScDerivatives
 from PETScSimplePoisson     import PETScPoisson
-from PETScSimpleNLMatrix    import PETScMatrix
+# from PETScSimpleNLMatrix    import PETScMatrix
 from PETScSimpleNLSolver    import PETScSolver
 
 
@@ -173,7 +173,7 @@ class petscMHD2D(object):
         
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
-        self.petsc_matrix   = PETScMatrix(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
+#         self.petsc_matrix   = PETScMatrix(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
         self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
         
         
@@ -309,7 +309,7 @@ class petscMHD2D(object):
         
         # update solution history
         self.petsc_solver.update_history(self.x)
-        self.petsc_matrix.update_history(self.x)
+#         self.petsc_matrix.update_history(self.x)
         
         
         # create HDF5 output file
@@ -384,34 +384,34 @@ class petscMHD2D(object):
            
             # update history
             self.petsc_solver.update_history(self.x)
-            self.petsc_matrix.update_history(self.x)
+#             self.petsc_matrix.update_history(self.x)
             
             # save to hdf5 file
 #            if itime % self.nsave == 0 or itime == self.grid.nt + 1:
             self.save_to_hdf5(itime)
             
         
-    def calculate_initial_guess(self):
-        self.ksp = PETSc.KSP().create()
-        self.ksp.setFromOptions()
-        self.ksp.setOperators(self.M)
-        self.ksp.setType('preonly')
-        self.ksp.getPC().setType('lu')
-        self.ksp.getPC().setFactorSolverPackage(solver_package)
-    
-        # build matrix
-        self.petsc_matrix.formMat(self.M)
-        
-#        mat_viewer = PETSc.Viewer().createDraw(size=(800,800), comm=PETSc.COMM_WORLD)
-#        mat_viewer(self.M)
-#        input("Press Enter")
-        
-        # build RHS
-        self.b.set(0.)
-#        self.petsc_matrix.formRHS(self.b)
-        
-        # solve
-        self.ksp.solve(self.b, self.x)
+#     def calculate_initial_guess(self):
+#         self.ksp = PETSc.KSP().create()
+#         self.ksp.setFromOptions()
+#         self.ksp.setOperators(self.M)
+#         self.ksp.setType('preonly')
+#         self.ksp.getPC().setType('lu')
+#         self.ksp.getPC().setFactorSolverPackage(solver_package)
+#     
+#         # build matrix
+#         self.petsc_matrix.formMat(self.M)
+#         
+# #        mat_viewer = PETSc.Viewer().createDraw(size=(800,800), comm=PETSc.COMM_WORLD)
+# #        mat_viewer(self.M)
+# #        input("Press Enter")
+#         
+#         # build RHS
+#         self.b.set(0.)
+# #        self.petsc_matrix.formRHS(self.b)
+#         
+#         # solve
+#         self.ksp.solve(self.b, self.x)
         
     
     
