@@ -148,6 +148,10 @@ class petscMHD2D(object):
         self.f  = self.da4.createGlobalVec()
         self.Pb = self.da1.createGlobalVec()
         
+        #  nullspace vectors
+        self.x0 = self.da4.createGlobalVec()
+        self.P0 = self.da1.createGlobalVec()
+        
         # create vectors for magnetic and velocity field
         self.A  = self.da1.createGlobalVec()        # magnetic vector potential A
         self.J  = self.da1.createGlobalVec()        # current density           J
@@ -171,6 +175,17 @@ class petscMHD2D(object):
         self.Vy.setName('Vy')
         
         
+        # initialise nullspace basis vectors
+        self.x0.set(0.)
+        x0_arr = self.da4.getVecArray(self.x0)[...]
+        
+        x0_arr[:, :, 2] = 1.
+        self.x0.normalize()
+        
+        self.solver_nullspace  = PETSc.NullSpace().create(constant=False, vectors=(self.x0,))
+        self.poisson_nullspace = PETSc.NullSpace().create(constant=True)
+        
+        
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
 #         self.petsc_matrix   = PETScMatrix(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
@@ -181,6 +196,7 @@ class petscMHD2D(object):
         self.Pm = self.da1.createMat()
         self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
+        self.Pm.setNullSpace(self.poisson_nullspace)
         
         # initialise linear matrix
         self.M = self.da4.createMat()
@@ -199,15 +215,15 @@ class petscMHD2D(object):
         self.snes.setFromOptions()
 #         self.snes.getKSP().setType('gmres')
         self.snes.getKSP().setType('preonly')
+#         self.snes.getKSP().setNullSpace(self.solver_nullspace)
         self.snes.getKSP().getPC().setType('lu')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
-        
+
         # place holder for Poisson solver
         self.ksp = None
         
         # create derivatives object
         self.derivatives = PETScDerivatives(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
-        
         
         # get coordinate vectors
         coords_x = self.dax.getCoordinates()
@@ -271,6 +287,7 @@ class petscMHD2D(object):
         self.ksp.setType('preonly')
         self.ksp.getPC().setType('lu')
         self.ksp.getPC().setFactorSolverPackage(solver_package)
+#         self.ksp.setNullSpace(self.poisson_nullspace)
         
         self.petsc_poisson.formMat(self.J, self.Pm)
         self.petsc_poisson.formRHS(self.J, self.Pb)
@@ -286,6 +303,7 @@ class petscMHD2D(object):
         self.ksp.setType('preonly')
         self.ksp.getPC().setType('lu')
         self.ksp.getPC().setFactorSolverPackage(solver_package)
+#         self.ksp.setNullSpace(self.poisson_nullspace)
         
         self.petsc_poisson.formMat(self.O, self.Pm)
         self.petsc_poisson.formRHS(self.O, self.Pb)
@@ -346,6 +364,7 @@ class petscMHD2D(object):
     def updateJacobian(self, snes, X, J, P):
         self.petsc_solver.update_previous(X)
         self.petsc_solver.formMat(J)
+#         J.setNullSpace(self.solver_nullspace)
     
     
     def run(self):
