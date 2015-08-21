@@ -91,17 +91,15 @@ cdef class PETScSolver(object):
         cdef np.ndarray[np.float64_t, ndim=2] Ph = xh[...][:,:,2]
         cdef np.ndarray[np.float64_t, ndim=2] Oh = xh[...][:,:,3]
         
-        cdef np.ndarray[np.float64_t, ndim=2] A_ave = 0.5 * (Ap + Ah)
-        cdef np.ndarray[np.float64_t, ndim=2] J_ave = 0.5 * (Jp + Jh)
-        cdef np.ndarray[np.float64_t, ndim=2] P_ave = 0.5 * (Pp + Ph)
-        cdef np.ndarray[np.float64_t, ndim=2] O_ave = 0.5 * (Op + Oh)
+        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
+        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
+        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
+        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
         cdef np.float64_t time_fac = 1.0 / (16. * self.ht)
         cdef np.float64_t arak_fac = 0.5 / (12. * self.hx * self.hy)
-        cdef np.float64_t arak_grad_fac = 1.0 / (24. * self.hx * self.hy) # * 0.5 * 2.
         
-        cdef np.float64_t ave_fac  = 1.0  / 16.
         cdef np.float64_t lapx_fac = 1.0 / self.hx**2
         cdef np.float64_t lapy_fac = 1.0 / self.hy**2
         
@@ -121,8 +119,55 @@ cdef class PETScSolver(object):
                 row.index = (i,j)
                 
                 # magnetic potential
-                # - Delta A - J = - R_A
+                # dA/dt + [P, A] = - R_J
                 row.field = 0
+                
+                # dA/dt + [P, dA] 
+                col.field = 0
+                for index, value in [
+                        ((i-1, j-1), 1. * time_fac + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i-1, j  ), 2. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                                   + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i-1, j+1), 1. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
+                        ((i,   j-1), 2. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                                   - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i,   j  ), 4. * time_fac),
+                        ((i,   j+1), 2. * time_fac + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
+                                                   + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
+                        ((i+1, j-1), 1. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
+                        ((i+1, j  ), 2. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
+                                                   - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
+                        ((i+1, j+1), 1. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
+                    ]:
+  
+                    col.index = index
+                    A.setValueStencil(row, col, value)
+                  
+                  
+                # + [dP, A]
+                col.field = 2
+                for index, value in [
+                        ((i-1, j-1), - (A_ave[ix-1, jx  ] - A_ave[ix,   jx-1]) * arak_fac),
+                        ((i-1, j  ), - (A_ave[ix,   jx+1] - A_ave[ix,   jx-1]) * arak_fac \
+                                     - (A_ave[ix-1, jx+1] - A_ave[ix-1, jx-1]) * arak_fac),
+                        ((i-1, j+1), - (A_ave[ix,   jx+1] - A_ave[ix-1, jx  ]) * arak_fac),
+                        ((i,   j-1), + (A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ]) * arak_fac \
+                                     + (A_ave[ix+1, jx-1] - A_ave[ix-1, jx-1]) * arak_fac),
+                        ((i,   j+1), - (A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ]) * arak_fac \
+                                     - (A_ave[ix+1, jx+1] - A_ave[ix-1, jx+1]) * arak_fac),
+                        ((i+1, j-1), + (A_ave[ix+1, jx  ] - A_ave[ix,   jx-1]) * arak_fac),
+                        ((i+1, j  ), + (A_ave[ix,   jx+1] - A_ave[ix,   jx-1]) * arak_fac \
+                                     + (A_ave[ix+1, jx+1] - A_ave[ix+1, jx-1]) * arak_fac),
+                        ((i+1, j+1), + (A_ave[ix,   jx+1] - A_ave[ix+1, jx  ]) * arak_fac),
+                    ]:
+  
+                    col.index = index
+                    A.setValueStencil(row, col, value)
+                
+                
+                # current density
+                # - Delta A - J = - R_A
+                row.field = 1
                 
                 if i == 0 and j == 0:
                     A.setValueStencil(row, row, 1.)
@@ -152,241 +197,6 @@ cdef class PETScSolver(object):
                 
                 
                 
-                # current density
-                # dJ/dt + [P, J] + [O, A] + 2 [A_x,P_x] + 2[A_y,P_y] = - R_J
-                row.field = 1
-                
-                # + [O, dA] + 2 * [dA_x, P_x] + 2 * [dA_y, P_y]
-                col.field = 0
-                for index, value in [
-                        ((i-2, j-1), + 1.  * ( P_ave[ix-1, jx  ] - P_ave[ix-2, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-1] + P_ave[ix-1, jx+1] - 2. * P_ave[ix-1, jx] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i-2, j  ), + 1.  * ( P_ave[ix-2, jx-1] - P_ave[ix-2, jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix,   jx+1] - P_ave[ix,   jx-1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i-2, j+1), + 1.  * ( P_ave[ix-2, jx  ] - P_ave[ix-1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     - 0.5 * ( P_ave[ix-1, jx-1] + P_ave[ix-1, jx+1] - 2. * P_ave[ix-1, jx] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i-1, j-2), + 1.  * ( P_ave[ix,   jx-2] - P_ave[ix,   jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     - 0.5 * ( P_ave[ix-1, jx-1] + P_ave[ix+1, jx-1] - 2. * P_ave[ix, jx-1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i-1, j-1), + (O_ave[ix-1, jx  ] - O_ave[ix,   jx-1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix-1, jx+1] - P_ave[ix-1, jx  ] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 4.  * ( P_ave[ix,   jx-1] - P_ave[ix+1, jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-2] - P_ave[ix+1, jx-2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-2, jx+1] - P_ave[ix-2, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix,   jx-1] - P_ave[ix,   jx+1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i-1, j  ), + (O_ave[ix,   jx+1] - O_ave[ix,   jx-1]) * arak_fac \
-                                     + (O_ave[ix-1, jx+1] - O_ave[ix-1, jx-1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix-1, jx-1] - P_ave[ix-1, jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix-2, jx-1] - P_ave[ix-2, jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix-2, jx+1] - P_ave[ix-2, jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix,   jx+2] - P_ave[ix,   jx-2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-1] - P_ave[ix-1, jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx-1] - P_ave[ix+1, jx+1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i-1, j+1), + (O_ave[ix,   jx+1] - O_ave[ix-1, jx  ]) * arak_fac \
-                                     + 4.  * ( P_ave[ix+1, jx+1] - P_ave[ix,   jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 4.  * ( P_ave[ix-1, jx  ] - P_ave[ix-1, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx  ] - P_ave[ix+1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx+2] - P_ave[ix-1, jx+2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-2, jx+1] - P_ave[ix-2, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix,   jx-1] - P_ave[ix,   jx+1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i-1, j+2), + 1.  * ( P_ave[ix,   jx+1] - P_ave[ix,   jx+2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx+1] + P_ave[ix+1, jx+1] - 2. * P_ave[ix, jx+1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i,   j-2), + 1.  * ( P_ave[ix-1, jx  ] - P_ave[ix+1, jx  ] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+1, jx-2] - P_ave[ix-1, jx-2] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i,   j-1), - (O_ave[ix+1, jx  ] - O_ave[ix-1, jx  ]) * arak_fac \
-                                     - (O_ave[ix+1, jx-1] - O_ave[ix-1, jx-1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+1, jx-2] - P_ave[ix-1, jx-2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix-2, jx  ] - P_ave[ix+2, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix-1, jx-2] - P_ave[ix+1, jx-2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i,   j+1), + (O_ave[ix+1, jx  ] - O_ave[ix-1, jx  ]) * arak_fac \
-                                     + (O_ave[ix+1, jx+1] - O_ave[ix-1, jx+1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix-1, jx+1] - P_ave[ix+1, jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix-1, jx+2] - P_ave[ix+1, jx+2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+2, jx  ] - P_ave[ix-2, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+1, jx+2] - P_ave[ix-1, jx+2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-1] - P_ave[ix+1, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx+1] - P_ave[ix+1, jx+1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i,   j+2), + 1.  * ( P_ave[ix-1, jx+2] - P_ave[ix+1, jx+2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i+1, j-2), + 1.  * ( P_ave[ix,   jx-1] - P_ave[ix,   jx-2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-1] + P_ave[ix+1, jx-1] - 2. * P_ave[ix, jx-1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i+1, j-1), - (O_ave[ix+1, jx  ] - O_ave[ix,   jx-1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix+1, jx  ] - P_ave[ix+1, jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 4.  * ( P_ave[ix-1, jx-1] - P_ave[ix,   jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx-2] - P_ave[ix+1, jx-2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+2, jx-1] - P_ave[ix+2, jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix,   jx+1] - P_ave[ix,   jx-1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i+1, j  ), - (O_ave[ix,   jx+1] - O_ave[ix,   jx-1]) * arak_fac \
-                                     - (O_ave[ix+1, jx+1] - O_ave[ix+1, jx-1]) * arak_fac \
-                                     + 4.  * ( P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+2, jx-1] - P_ave[ix+2, jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix+2, jx+1] - P_ave[ix+2, jx-1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix,   jx-2] - P_ave[ix,   jx+2] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i+1, j+1), - (O_ave[ix,   jx+1] - O_ave[ix+1, jx  ]) * arak_fac \
-                                     + 4.  * ( P_ave[ix+1, jx-1] - P_ave[ix+1, jx  ] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 4.  * ( P_ave[ix,   jx+1] - P_ave[ix-1, jx+1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx+2] - P_ave[ix-1, jx+2] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix-1, jx  ] - P_ave[ix+1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+2, jx-1] - P_ave[ix+2, jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix,   jx+1] - P_ave[ix,   jx-1] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i+1, j+2), + 1.  * ( P_ave[ix,   jx+2] - P_ave[ix,   jx+1] ) * self.hy_inv**2 * arak_grad_fac \
-                                     - 0.5 * ( P_ave[ix-1, jx+1] + P_ave[ix+1, jx+1] - 2. * P_ave[ix, jx+1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i+2, j-1), + 1.  * ( P_ave[ix+2, jx  ] - P_ave[ix+1, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     - 0.5 * ( P_ave[ix+1, jx-1] + P_ave[ix+1, jx+1] - 2. * P_ave[ix+1, jx] ) * self.hy_inv**2 * arak_grad_fac),
-                        ((i+2, j  ), + 1.  * ( P_ave[ix+2, jx+1] - P_ave[ix+2, jx-1] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 1.  * ( P_ave[ix,   jx-1] - P_ave[ix,   jx+1] ) * self.hx_inv**2 * arak_grad_fac),
-                        ((i+2, j+1), + 1.  * ( P_ave[ix+1, jx  ] - P_ave[ix+2, jx  ] ) * self.hx_inv**2 * arak_grad_fac \
-                                     + 0.5 * ( P_ave[ix+1, jx-1] + P_ave[ix+1, jx+1] - 2. * P_ave[ix+1, jx] ) * self.hy_inv**2 * arak_grad_fac),
-                    ]:
- 
-                    col.index = index
-                    A.setValueStencil(row, col, value)
-                 
-                 
-                # dJ/dt + [P, dJ] 
-                col.field = 1
-                for index, value in [
-                        ((i-1, j-1), 1. * time_fac + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i-1, j  ), 2. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i-1, j+1), 1. * time_fac + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
-                        ((i,   j-1), 2. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j  ), 4. * time_fac),
-                        ((i,   j+1), 2. * time_fac + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                                   + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
-                        ((i+1, j-1), 1. * time_fac - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i+1, j  ), 2. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                                   - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
-                        ((i+1, j+1), 1. * time_fac - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
-                    ]:
-  
-                    col.index = index
-                    A.setValueStencil(row, col, value)
-                  
-                  
-                # + [dP, J] + 2 * [A_x, dP_x] + 2 * [A_y, dP_y]
-                col.field = 2
-                for index, value in [
-                        ((i-2, j-1), + 1.  * ( A_ave[ix-1, jx  ] - A_ave[ix-2, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-1] + A_ave[ix-1, jx+1] - 2. * A_ave[ix-1, jx] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i-2, j  ), + 1.  * ( A_ave[ix-2, jx-1] - A_ave[ix-2, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix,   jx+1] - A_ave[ix,   jx-1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i-2, j+1), + 1.  * ( A_ave[ix-2, jx  ] - A_ave[ix-1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     - 0.5 * ( A_ave[ix-1, jx-1] + A_ave[ix-1, jx+1] - 2. * A_ave[ix-1, jx] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i-1, j-2), + 1.  * ( A_ave[ix,   jx-2] - A_ave[ix,   jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     - 0.5 * ( A_ave[ix-1, jx-1] + A_ave[ix+1, jx-1] - 2. * A_ave[ix, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i-1, j-1), - (J_ave[ix-1, jx  ] - J_ave[ix,   jx-1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix-1, jx+1] - A_ave[ix-1, jx  ] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 4.  * ( A_ave[ix,   jx-1] - A_ave[ix+1, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-2] - A_ave[ix+1, jx-2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-2, jx+1] - A_ave[ix-2, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix,   jx-1] - A_ave[ix,   jx+1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i-1, j  ), - (J_ave[ix,   jx+1] - J_ave[ix,   jx-1]) * arak_fac \
-                                     - (J_ave[ix-1, jx+1] - J_ave[ix-1, jx-1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix-1, jx-1] - A_ave[ix-1, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix-2, jx-1] - A_ave[ix-2, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix-2, jx+1] - A_ave[ix-2, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix,   jx+2] - A_ave[ix,   jx-2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-1] - A_ave[ix-1, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx-1] - A_ave[ix+1, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i-1, j+1), - (J_ave[ix,   jx+1] - J_ave[ix-1, jx  ]) * arak_fac \
-                                     + 4.  * ( A_ave[ix+1, jx+1] - A_ave[ix,   jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 4.  * ( A_ave[ix-1, jx  ] - A_ave[ix-1, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx  ] - A_ave[ix+1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx+2] - A_ave[ix-1, jx+2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-2, jx+1] - A_ave[ix-2, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix,   jx-1] - A_ave[ix,   jx+1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i-1, j+2), + 1.  * ( A_ave[ix,   jx+1] - A_ave[ix,   jx+2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx+1] + A_ave[ix+1, jx+1] - 2. * A_ave[ix, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i,   j-2), + 1.  * ( A_ave[ix-1, jx  ] - A_ave[ix+1, jx  ] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+1, jx-2] - A_ave[ix-1, jx-2] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i,   j-1), + (J_ave[ix+1, jx  ] - J_ave[ix-1, jx  ]) * arak_fac \
-                                     + (J_ave[ix+1, jx-1] - J_ave[ix-1, jx-1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix+1, jx-1] - A_ave[ix-1, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+1, jx-2] - A_ave[ix-1, jx-2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix-2, jx  ] - A_ave[ix+2, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix-1, jx-2] - A_ave[ix+1, jx-2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx-1] - A_ave[ix-1, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx+1] - A_ave[ix-1, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i,   j+1), - (J_ave[ix+1, jx  ] - J_ave[ix-1, jx  ]) * arak_fac \
-                                     - (J_ave[ix+1, jx+1] - J_ave[ix-1, jx+1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix-1, jx+1] - A_ave[ix+1, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix-1, jx+2] - A_ave[ix+1, jx+2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+2, jx  ] - A_ave[ix-2, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+1, jx+2] - A_ave[ix-1, jx+2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-1] - A_ave[ix+1, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx+1] - A_ave[ix+1, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i,   j+2), + 1.  * ( A_ave[ix-1, jx+2] - A_ave[ix+1, jx+2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i+1, j-2), + 1.  * ( A_ave[ix,   jx-1] - A_ave[ix,   jx-2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-1] + A_ave[ix+1, jx-1] - 2. * A_ave[ix, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i+1, j-1), + (J_ave[ix+1, jx  ] - J_ave[ix,   jx-1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix+1, jx  ] - A_ave[ix+1, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 4.  * ( A_ave[ix-1, jx-1] - A_ave[ix,   jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx-2] - A_ave[ix+1, jx-2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+2, jx-1] - A_ave[ix+2, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix,   jx+1] - A_ave[ix,   jx-1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i+1, j  ), + (J_ave[ix,   jx+1] - J_ave[ix,   jx-1]) * arak_fac \
-                                     + (J_ave[ix+1, jx+1] - J_ave[ix+1, jx-1]) * arak_fac \
-                                     + 4.  * ( A_ave[ix+1, jx+1] - A_ave[ix+1, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+2, jx-1] - A_ave[ix+2, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix+2, jx+1] - A_ave[ix+2, jx-1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix,   jx-2] - A_ave[ix,   jx+2] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx+1] - A_ave[ix+1, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx+1] - A_ave[ix-1, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i+1, j+1), + (J_ave[ix,   jx+1] - J_ave[ix+1, jx  ]) * arak_fac \
-                                     + 4.  * ( A_ave[ix+1, jx-1] - A_ave[ix+1, jx  ] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 4.  * ( A_ave[ix,   jx+1] - A_ave[ix-1, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx+2] - A_ave[ix-1, jx+2] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix-1, jx  ] - A_ave[ix+1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+2, jx-1] - A_ave[ix+2, jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix,   jx+1] - A_ave[ix,   jx-1] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i+1, j+2), + 1.  * ( A_ave[ix,   jx+2] - A_ave[ix,   jx+1] ) * self.hy_inv**2 * (- arak_grad_fac) \
-                                     - 0.5 * ( A_ave[ix-1, jx+1] + A_ave[ix+1, jx+1] - 2. * A_ave[ix, jx+1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i+2, j-1), + 1.  * ( A_ave[ix+2, jx  ] - A_ave[ix+1, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     - 0.5 * ( A_ave[ix+1, jx-1] + A_ave[ix+1, jx+1] - 2. * A_ave[ix+1, jx] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                        ((i+2, j  ), + 1.  * ( A_ave[ix+2, jx+1] - A_ave[ix+2, jx-1] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 1.  * ( A_ave[ix,   jx-1] - A_ave[ix,   jx+1] ) * self.hx_inv**2 * (- arak_grad_fac)),
-                        ((i+2, j+1), + 1.  * ( A_ave[ix+1, jx  ] - A_ave[ix+2, jx  ] ) * self.hx_inv**2 * (- arak_grad_fac) \
-                                     + 0.5 * ( A_ave[ix+1, jx-1] + A_ave[ix+1, jx+1] - 2. * A_ave[ix+1, jx] ) * self.hy_inv**2 * (- arak_grad_fac)),
-                    ]:
- 
-                    col.index = index
-                    A.setValueStencil(row, col, value)
-                
-                
-                # + [dO, A]
-                col.field = 3
-                for index, value in [
-                        ((i-1, j-1), - (A_ave[ix-1, jx  ] - A_ave[ix,   jx-1]) * arak_fac),
-                        ((i-1, j  ), - (A_ave[ix,   jx+1] - A_ave[ix,   jx-1]) * arak_fac \
-                                     - (A_ave[ix-1, jx+1] - A_ave[ix-1, jx-1]) * arak_fac),
-                        ((i-1, j+1), - (A_ave[ix,   jx+1] - A_ave[ix-1, jx  ]) * arak_fac),
-                        ((i,   j-1), + (A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ]) * arak_fac \
-                                     + (A_ave[ix+1, jx-1] - A_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j+1), - (A_ave[ix+1, jx  ] - A_ave[ix-1, jx  ]) * arak_fac \
-                                     - (A_ave[ix+1, jx+1] - A_ave[ix-1, jx+1]) * arak_fac),
-                        ((i+1, j-1), + (A_ave[ix+1, jx  ] - A_ave[ix,   jx-1]) * arak_fac),
-                        ((i+1, j  ), + (A_ave[ix,   jx+1] - A_ave[ix,   jx-1]) * arak_fac \
-                                     + (A_ave[ix+1, jx+1] - A_ave[ix+1, jx-1]) * arak_fac),
-                        ((i+1, j+1), + (A_ave[ix,   jx+1] - A_ave[ix+1, jx  ]) * arak_fac),
-                    ]:
-  
-                    col.index = index
-                    A.setValueStencil(row, col, value)
-                
-                
-                
-                 
                 # streaming function
                 # - Delta P - O = - R_P
                 row.field = 2
@@ -542,10 +352,10 @@ cdef class PETScSolver(object):
         cdef np.ndarray[np.float64_t, ndim=2] Ph = xh[...][:,:,2]
         cdef np.ndarray[np.float64_t, ndim=2] Oh = xh[...][:,:,3]
         
-        cdef np.ndarray[np.float64_t, ndim=2] A_ave = 0.5 * (Ap + Ah)
-        cdef np.ndarray[np.float64_t, ndim=2] J_ave = 0.5 * (Jp + Jh)
-        cdef np.ndarray[np.float64_t, ndim=2] P_ave = 0.5 * (Pp + Ph)
-        cdef np.ndarray[np.float64_t, ndim=2] O_ave = 0.5 * (Op + Oh)
+        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
+        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
+        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
+        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
         
@@ -559,21 +369,15 @@ cdef class PETScSolver(object):
                 jy = j-ys
                 
                 # magnetic potential
-                if i == 0 and j == 0:
-                    y[iy, jy, 0] = Ap[ix,jx]
-                    
-                else:
-                    y[iy, jy, 0] = \
-                                 - self.derivatives.laplace(Ap, ix, jx) \
-                                 - Jp[ix, jx]
+                y[iy, jy, 0] = \
+                             + self.derivatives.dt(Ap, ix, jx) \
+                             - self.derivatives.dt(Ah, ix, jx) \
+                             + self.derivatives.arakawa(P_ave, A_ave, ix, jx)
                 
                 # current density
                 y[iy, jy, 1] = \
-                             + self.derivatives.dt(Jp, ix, jx) \
-                             - self.derivatives.dt(Jh, ix, jx) \
-                             + self.derivatives.arakawa(P_ave, J_ave, ix, jx) \
-                             + self.derivatives.arakawa(O_ave, A_ave, ix, jx) \
-                             + 2. * self.derivatives.arakawa_grad(A_ave, P_ave, ix, jx)
+                             - self.derivatives.laplace(Ap, ix, jx) \
+                             - Jp[ix, jx]
                 
                 # streaming function
                 if i == 0 and j == 0:
