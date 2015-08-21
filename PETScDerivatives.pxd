@@ -26,7 +26,6 @@ cdef class PETScDerivatives(object):
     cdef np.float64_t hy_inv
     
     cdef DMDA da1
-    cdef DMDA da4
     
     cdef Vec localX
     

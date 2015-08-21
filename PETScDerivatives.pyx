@@ -18,9 +18,8 @@ cdef class PETScDerivatives(object):
     '''
     
     
-    def __cinit__(self, DMDA da1, DMDA da4,
-                  np.uint64_t  nx, np.uint64_t  ny,
-                  np.float64_t ht, np.float64_t hx, np.float64_t hy):
+    def __cinit__(self, DMDA da1, np.uint64_t nx, np.uint64_t ny,
+                       double ht, double hx, double hy):
         '''
         Constructor
         '''
@@ -40,7 +39,6 @@ cdef class PETScDerivatives(object):
         
         # distributed arrays
         self.da1 = da1
-        self.da4 = da4
         
         
         # create local vectors

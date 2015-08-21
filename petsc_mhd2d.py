@@ -223,7 +223,7 @@ class petscMHD2D(object):
         self.ksp = None
         
         # create derivatives object
-        self.derivatives = PETScDerivatives(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
+        self.derivatives = PETScDerivatives(self.da1, self.nx, self.ny, self.ht, self.hx, self.hy)
         
         # get coordinate vectors
         coords_x = self.dax.getCoordinates()

@@ -55,7 +55,7 @@ cdef class PETScSolver(object):
         self.localXh = da4.createLocalVec()
         
         # create derivatives object
-        self.derivatives = PETScDerivatives(da1, da4, nx, ny, ht, hx, hy)
+        self.derivatives = PETScDerivatives(da1, nx, ny, ht, hx, hy)
         
         
     
