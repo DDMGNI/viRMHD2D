@@ -136,8 +136,8 @@ cdef class PETScOhmsLaw(object):
         self.da1.globalToLocal(self.Ah, self.localAh)
         self.da1.globalToLocal(self.Ph, self.localPh)
         
-        cdef np.ndarray[np.float64_t, ndim=2] Ah = self.da1.getVecArray(self.localAh)[...]
         cdef np.ndarray[np.float64_t, ndim=2] Ap = self.da1.getVecArray(self.localAp)[...]
+        cdef np.ndarray[np.float64_t, ndim=2] Ah = self.da1.getVecArray(self.localAh)[...]
         cdef np.ndarray[np.float64_t, ndim=2] Ph = self.da1.getVecArray(self.localPh)[...]
         
         cdef double[:,:] A_ave = 0.5 * (Ap + Ah)

@@ -196,7 +196,7 @@ class petscMHD2D(object):
         self.Pm = self.da1.createMat()
         self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
-        self.Pm.setNullSpace(self.poisson_nullspace)
+#         self.Pm.setNullSpace(self.poisson_nullspace)
         
         # initialise linear matrix
         self.M = self.da4.createMat()
@@ -220,7 +220,7 @@ class petscMHD2D(object):
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
         # place holder for Poisson solver
-        self.ksp = None
+        self.poisson_ksp = None
         
         # create derivatives object
         self.derivatives = PETScDerivatives(self.da1, self.nx, self.ny, self.ht, self.hx, self.hy)
@@ -281,35 +281,35 @@ class petscMHD2D(object):
         
         
         # solve for consistent initial A
-        self.ksp = PETSc.KSP().create()
-        self.ksp.setFromOptions()
-        self.ksp.setOperators(self.Pm)
-        self.ksp.setType('preonly')
-        self.ksp.getPC().setType('lu')
-        self.ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.ksp.setNullSpace(self.poisson_nullspace)
+        self.poisson_ksp = PETSc.KSP().create()
+        self.poisson_ksp.setFromOptions()
+        self.poisson_ksp.setOperators(self.Pm)
+        self.poisson_ksp.setType('preonly')
+        self.poisson_ksp.getPC().setType('lu')
+        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
+#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
         
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.J, self.Pb)
-        self.ksp.solve(self.Pb, self.A)
+        self.poisson_ksp.solve(self.Pb, self.A)
         
-        del self.ksp
+        del self.poisson_ksp
         
         
         # solve for consistent initial psi
-        self.ksp = PETSc.KSP().create()
-        self.ksp.setFromOptions()
-        self.ksp.setOperators(self.Pm)
-        self.ksp.setType('preonly')
-        self.ksp.getPC().setType('lu')
-        self.ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.ksp.setNullSpace(self.poisson_nullspace)
+        self.poisson_ksp = PETSc.KSP().create()
+        self.poisson_ksp.setFromOptions()
+        self.poisson_ksp.setOperators(self.Pm)
+        self.poisson_ksp.setType('preonly')
+        self.poisson_ksp.getPC().setType('lu')
+        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
+#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
         
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.O, self.Pb)
-        self.ksp.solve(self.Pb, self.P)
+        self.poisson_ksp.solve(self.Pb, self.P)
         
-        del self.ksp
+        del self.poisson_ksp
         
         
         # copy initial data vectors to x
@@ -355,10 +355,12 @@ class petscMHD2D(object):
         
     
     def __del__(self):
-#        if self.hdf5_viewer != None:
-#            del self.hdf5_viewer
-        pass
-        
+        self.hdf5_viewer.destroy()
+        self.poisson_ksp.destroy()
+        self.snes.destroy()
+        self.Jac.destroy()
+        self.M.destroy()
+        self.Pm.destroy()
     
     
     def updateJacobian(self, snes, X, J, P):
@@ -411,12 +413,12 @@ class petscMHD2D(object):
             
         
 #     def calculate_initial_guess(self):
-#         self.ksp = PETSc.KSP().create()
-#         self.ksp.setFromOptions()
-#         self.ksp.setOperators(self.M)
-#         self.ksp.setType('preonly')
-#         self.ksp.getPC().setType('lu')
-#         self.ksp.getPC().setFactorSolverPackage(solver_package)
+#         self.poisson_ksp = PETSc.KSP().create()
+#         self.poisson_ksp.setFromOptions()
+#         self.poisson_ksp.setOperators(self.M)
+#         self.poisson_ksp.setType('preonly')
+#         self.poisson_ksp.getPC().setType('lu')
+#         self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
 #     
 #         # build matrix
 #         self.petsc_matrix.formMat(self.M)
@@ -430,7 +432,7 @@ class petscMHD2D(object):
 # #        self.petsc_matrix.formRHS(self.b)
 #         
 #         # solve
-#         self.ksp.solve(self.b, self.x)
+#         self.poisson_ksp.solve(self.b, self.x)
         
     
     

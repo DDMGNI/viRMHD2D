@@ -176,8 +176,7 @@ cdef class PETScVorticity(object):
                 jx = j-ys+2
                 jy = j-ys
                 
-                y[iy, jy] = \
-                          + (Op[ix,jx] - Oh[ix,jx] ) * self.ht_inv \
+                y[iy, jy] = (Op[ix,jx] - Oh[ix,jx] ) * self.ht_inv \
                           + self.derivatives.arakawa(P_ave, O_ave, ix, jx) \
                           + self.derivatives.arakawa(J_ave, A_ave, ix, jx)
 
