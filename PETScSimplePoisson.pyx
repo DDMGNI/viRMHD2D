@@ -71,20 +71,16 @@ cdef class PETScPoisson(object):
                 
                 row.index = (i,j)
                 
-                if i == 0 and j == 0:
-                    A.setValueStencil(row, row, 1.)
-
-                else:
-                    for index, value in [
-                        ((i,   j-1),                 - 1. * lapy_fac),
-                        ((i-1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
-                        ((i+1, j  ), - 1. * lapx_fac                ),
-                        ((i,   j+1),                 - 1. * lapy_fac),
-                        ]:
-                        
-                        col.index = index
-                        A.setValueStencil(row, col, value)
+                for index, value in [
+                    ((i,   j-1),                 - 1. * lapy_fac),
+                    ((i-1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
+                    ((i+1, j  ), - 1. * lapx_fac                ),
+                    ((i,   j+1),                 - 1. * lapy_fac),
+                    ]:
+                    
+                    col.index = index
+                    A.setValueStencil(row, col, value)
 
         A.assemble()
         
