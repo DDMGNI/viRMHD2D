@@ -108,10 +108,10 @@ cdef class PETScSolver(object):
         col = Mat.Stencil()
         
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 
                 row.index = (i,j)
@@ -340,11 +340,11 @@ cdef class PETScSolver(object):
         cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             iy = i-xs
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 jy = j-ys
                 

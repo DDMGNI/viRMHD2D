@@ -63,10 +63,10 @@ cdef class PETScPoisson(object):
         col = Mat.Stencil()
         
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 
                 row.index = (i,j)
@@ -103,11 +103,11 @@ cdef class PETScPoisson(object):
         cdef np.ndarray[np.float64_t, ndim=2] x = self.da1.getVecArray(self.localX)[...]
         
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             iy = i-xs
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 jy = j-ys
                 

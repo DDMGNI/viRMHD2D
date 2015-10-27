@@ -32,17 +32,14 @@ cdef class PETScDerivatives(object):
     cdef np.ndarray ty
     
     
-    cdef double arakawa(self, double[:,:] x, double[:,:] h,
-                              np.uint64_t i, np.uint64_t j)
+    cdef double arakawa(self, double[:,:] x, double[:,:] h, int i, int j)
 
-    cdef double laplace(self, double[:,:] x,
-                              np.uint64_t i, np.uint64_t j)
+    cdef double laplace(self, double[:,:] x, int i, int j)
     
-    cpdef laplace_vec(self, Vec X, Vec D, np.float64_t sign)
+    cpdef laplace_vec(self, Vec X, Vec D, double sign)
     
-    cpdef double dx(self, Vec X, Vec D, np.float64_t sign)
-    
-    cpdef double dy(self, Vec X, Vec D, np.float64_t sign)
+    cpdef double dx(self, Vec X, Vec D, double sign)
+    cpdef double dy(self, Vec X, Vec D, double sign)
 
-    cdef  double dt(self, double[:,:] x, np.uint64_t i, np.uint64_t j)
+    cdef  double dt(self, double[:,:] x, int i, int j)
 

@@ -102,10 +102,10 @@ cdef class PETScVorticity(object):
         row.field = 0
         col.field = 0
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 
                 row.index = (i,j)
@@ -168,11 +168,11 @@ cdef class PETScVorticity(object):
         cdef double[:,:] y     = self.da1.getVecArray(Y)[...]
         
         
-        for i in np.arange(xs, xe):
+        for i in range(xs, xe):
             ix = i-xs+2
             iy = i-xs
             
-            for j in np.arange(ys, ye):
+            for j in range(ys, ye):
                 jx = j-ys+2
                 jy = j-ys
                 

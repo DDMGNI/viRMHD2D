@@ -47,8 +47,7 @@ cdef class PETScDerivatives(object):
         
     
     @cython.boundscheck(False)
-    cdef double arakawa(self, double[:,:] x, double[:,:] h,
-                              np.uint64_t i, np.uint64_t j):
+    cdef double arakawa(self, double[:,:] x, double[:,:] h, int i, int j):
         '''
         MHD Derivative: Arakawa Bracket
         '''
@@ -75,10 +74,9 @@ cdef class PETScDerivatives(object):
     
     
     @cython.boundscheck(False)
-    cdef double laplace(self, double[:,:] x,
-                                    np.uint64_t i, np.uint64_t j):
+    cdef double laplace(self, double[:,:] x, int i, int j):
         
-        cdef np.float64_t result
+        cdef double result
         
         result = ( \
                    + 1. * x[i-1, j] \
@@ -95,7 +93,7 @@ cdef class PETScDerivatives(object):
     
 
     @cython.boundscheck(False)
-    cpdef laplace_vec(self, Vec X, Vec Y, np.float64_t sign):
+    cpdef laplace_vec(self, Vec X, Vec Y, double sign):
     
         cdef np.uint64_t ix, iy, jx, jy, i, j
         cdef np.uint64_t xs, xe, ys, ye
@@ -110,11 +108,11 @@ cdef class PETScDerivatives(object):
         cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
         cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
         
-        for j in np.arange(ys, ye):
+        for j in range(ys, ye):
             jx = j-ys+2
             jy = j-ys
             
-            for i in np.arange(xs, xe):
+            for i in range(xs, xe):
                 ix = i-xs+2
                 iy = i-xs
                 
@@ -123,7 +121,7 @@ cdef class PETScDerivatives(object):
     
     
     @cython.boundscheck(False)
-    cpdef double dx(self, Vec X, Vec Y, np.float64_t sign):
+    cpdef double dx(self, Vec X, Vec Y, double sign):
     
         cdef np.uint64_t ix, iy, jx, jy, i, j
         cdef np.uint64_t xs, xe, ys, ye
@@ -138,11 +136,11 @@ cdef class PETScDerivatives(object):
         cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
         cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
         
-        for j in np.arange(ys, ye):
+        for j in range(ys, ye):
             jx = j-ys+2
             jy = j-ys
             
-            for i in np.arange(xs, xe):
+            for i in range(xs, xe):
                 ix = i-xs+2
                 iy = i-xs
                 
@@ -150,7 +148,7 @@ cdef class PETScDerivatives(object):
     
     
     @cython.boundscheck(False)
-    cpdef double dy(self, Vec X, Vec Y, np.float64_t sign):
+    cpdef double dy(self, Vec X, Vec Y, double sign):
     
         cdef np.uint64_t ix, iy, jx, jy, i, j
         cdef np.uint64_t xs, xe, ys, ye
@@ -165,11 +163,11 @@ cdef class PETScDerivatives(object):
         cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
         cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
         
-        for j in np.arange(ys, ye):
+        for j in range(ys, ye):
             jx = j-ys+2
             jy = j-ys
             
-            for i in np.arange(xs, xe):
+            for i in range(xs, xe):
                 ix = i-xs+2
                 iy = i-xs
                 
@@ -177,8 +175,7 @@ cdef class PETScDerivatives(object):
     
     
     @cython.boundscheck(False)
-    cdef double dt(self, double[:,:] x,
-                               np.uint64_t i, np.uint64_t j):
+    cdef double dt(self, double[:,:] x, int i, int j):
         '''
         Time Derivative
         '''
