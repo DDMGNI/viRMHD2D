@@ -46,8 +46,8 @@ class petscMHD2D(object):
         self.nsave = cfg['io']['nsave']             # save only every nsave'th timestep
         
         # grid setup
-        self.nx   = cfg['grid']['nx']                    # number of points in x
-        self.ny   = cfg['grid']['ny']                    # number of points in y
+        self.nx    = cfg['grid']['nx']              # number of points in x
+        self.ny    = cfg['grid']['ny']              # number of points in y
         
         Lx   = cfg['grid']['Lx']                    # spatial domain in x
         x1   = cfg['grid']['x1']                    # 
@@ -196,7 +196,7 @@ class petscMHD2D(object):
         self.Pm = self.da1.createMat()
         self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
-#         self.Pm.setNullSpace(self.poisson_nullspace)
+        self.Pm.setNullSpace(self.poisson_nullspace)
         
         # initialise linear matrix
         self.M = self.da4.createMat()
@@ -235,7 +235,7 @@ class petscMHD2D(object):
         scatter.begin(coords_x, xVec, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
         scatter.end  (coords_x, xVec, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
           
-        xGrid = xVec.getValues(range(0, self.nx)).copy()
+        xGrid = xVec.getValues(range(self.nx)).copy()
           
         scatter.destroy()
         xVec.destroy()
@@ -246,7 +246,7 @@ class petscMHD2D(object):
         scatter.begin(coords_y, yVec, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
         scatter.end  (coords_y, yVec, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
                     
-        yGrid = yVec.getValues(range(0, self.ny)).copy()
+        yGrid = yVec.getValues(range(self.ny)).copy()
           
         scatter.destroy()
         yVec.destroy()
@@ -265,15 +265,43 @@ class petscMHD2D(object):
                 A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], Lx, Ly)
                 P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], Lx, Ly)
         
-        x_arr[xs:xe, ys:ye, 0] = A_arr[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 2] = P_arr[xs:xe, ys:ye]
+        # Fourier Filtering
+        self.nfourier = cfg['initial_data']['nfourier']
+          
+        if self.nfourier >= 0:
+            # obtain whole A vector everywhere
+            scatter, Aglobal = PETSc.Scatter.toAll(self.A)
+            
+            scatter.begin(self.A, Aglobal, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
+            scatter.end  (self.A, Aglobal, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
+            
+            petsc_indices = self.da1.getAO().app2petsc(np.arange(self.nx*self.ny, dtype=np.int32))
+            
+            Ainit = Aglobal.getValues(petsc_indices).copy().reshape((self.ny, self.nx))
+            
+            scatter.destroy()
+            Aglobal.destroy()
+            
+            # compute FFT, cut, compute inverse FFT
+            from scipy.fftpack import rfft, irfft
+            
+            Afft = rfft(Ainit, axis=1)
+            
+            Afft[:,0] = 0.
+            Afft[:,self.nfourier+1:] = 0.
+            
+            A_arr = self.da1.getVecArray(self.A)
+            A_arr[:,:] = irfft(Afft).T[xs:xe, ys:ye] 
+            
         
+        # compute current and vorticity
         self.derivatives.laplace_vec(self.A, self.J, -1.)
         self.derivatives.laplace_vec(self.P, self.O, -1.)
         
         J_arr = self.da1.getVecArray(self.J)
         O_arr = self.da1.getVecArray(self.O)
         
+        # add perturbations
         for i in range(xs, xe):
             for j in range(ys, ye):
                 J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], Lx, Ly)
@@ -356,7 +384,7 @@ class petscMHD2D(object):
     
     def __del__(self):
         self.hdf5_viewer.destroy()
-        self.poisson_ksp.destroy()
+#         self.poisson_ksp.destroy()
         self.snes.destroy()
         self.Jac.destroy()
         self.M.destroy()
