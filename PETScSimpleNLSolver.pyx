@@ -11,7 +11,7 @@ cimport numpy as np
 
 from petsc4py import PETSc
 
-from petsc4py.PETSc cimport DMDA, Mat, Vec
+from petsc4py.PETSc cimport Mat, Vec
 
 from PETScDerivatives import PETScDerivatives
 
@@ -22,7 +22,7 @@ cdef class PETScSolver(object):
     built on top of the SciPy Sparse package.
     '''
     
-    def __init__(self, DMDA da1, DMDA da4,
+    def __init__(self, object da1, object da4,
                  np.uint64_t nx, np.uint64_t ny,
                  np.float64_t ht, np.float64_t hx, np.float64_t hy):
         '''

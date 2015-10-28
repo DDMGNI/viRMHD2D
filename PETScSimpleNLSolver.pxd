@@ -6,7 +6,7 @@ Created on Jul 10, 2012
 
 cimport numpy as np
 
-from petsc4py.PETSc cimport DMDA, Mat, SNES, Vec
+from petsc4py.PETSc cimport Mat, SNES, Vec
 
 from PETScDerivatives cimport PETScDerivatives
 
@@ -24,8 +24,8 @@ cdef class PETScSolver(object):
     cdef np.float64_t hx_inv
     cdef np.float64_t hy_inv
     
-    cdef DMDA da1
-    cdef DMDA da4
+    cdef object da1
+    cdef object da4
     
     cdef Vec Xh
     cdef Vec Xp

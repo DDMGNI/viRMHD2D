@@ -9,7 +9,7 @@ cimport cython
 import  numpy as np
 cimport numpy as np
 
-from petsc4py.PETSc cimport DMDA, Vec
+from petsc4py.PETSc cimport Vec
 
 
 cdef class PETScDerivatives(object):
@@ -18,7 +18,7 @@ cdef class PETScDerivatives(object):
     '''
     
     
-    def __cinit__(self, DMDA da1, np.uint64_t nx, np.uint64_t ny,
+    def __cinit__(self, object da1, np.uint64_t nx, np.uint64_t ny,
                        double ht, double hx, double hy):
         '''
         Constructor
@@ -52,7 +52,7 @@ cdef class PETScDerivatives(object):
         MHD Derivative: Arakawa Bracket
         '''
         
-        cdef np.float64_t jpp, jpc, jcp, result
+        cdef double jpp, jpc, jcp, result
         
         jpp = (x[i+1, j  ] - x[i-1, j  ]) * (h[i,   j+1] - h[i,   j-1]) \
             - (x[i,   j+1] - x[i,   j-1]) * (h[i+1, j  ] - h[i-1, j  ])
@@ -73,7 +73,7 @@ cdef class PETScDerivatives(object):
     
     
     
-    @cython.boundscheck(False)
+#     @cython.boundscheck(False)
     cdef double laplace(self, double[:,:] x, int i, int j):
         
         cdef double result
@@ -88,15 +88,15 @@ cdef class PETScDerivatives(object):
                    - 2. * x[i, j  ] \
                    + 1. * x[i, j+1] \
                  ) * self.hy_inv**2
- 
+        
         return result
     
 
-    @cython.boundscheck(False)
+#     @cython.boundscheck(False)
     cpdef laplace_vec(self, Vec X, Vec Y, double sign):
     
-        cdef np.uint64_t ix, iy, jx, jy, i, j
-        cdef np.uint64_t xs, xe, ys, ye
+        cdef int ix, iy, jx, jy, i, j
+        cdef int xs, xe, ys, ye
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
@@ -105,16 +105,16 @@ cdef class PETScDerivatives(object):
         x = self.da1.getVecArray(self.localX)
         y = self.da1.getVecArray(Y)
         
-        cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
-        cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
+        cdef double[:,:] tx = x[...]
+        cdef double[:,:] ty = y[...]
         
-        for j in range(ys, ye):
-            jx = j-ys+2
-            jy = j-ys
+        for i in range(xs, xe):
+            ix = i-xs+2
+            iy = i-xs
             
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
+            for j in range(ys, ye):
+                jx = j-ys+2
+                jy = j-ys
                 
                 ty[iy, jy] = sign * self.laplace(tx, ix, jx)
     
@@ -123,8 +123,8 @@ cdef class PETScDerivatives(object):
     @cython.boundscheck(False)
     cpdef double dx(self, Vec X, Vec Y, double sign):
     
-        cdef np.uint64_t ix, iy, jx, jy, i, j
-        cdef np.uint64_t xs, xe, ys, ye
+        cdef int ix, iy, jx, jy, i, j
+        cdef int xs, xe, ys, ye
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
@@ -136,13 +136,13 @@ cdef class PETScDerivatives(object):
         cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
         cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
         
-        for j in range(ys, ye):
-            jx = j-ys+2
-            jy = j-ys
+        for i in range(xs, xe):
+            ix = i-xs+2
+            iy = i-xs
             
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
+            for j in range(ys, ye):
+                jx = j-ys+2
+                jy = j-ys
                 
                 ty[iy, jy] = sign * (tx[ix+1, jx] - tx[ix-1, jx]) * 0.5 * self.hx_inv
     
@@ -150,8 +150,8 @@ cdef class PETScDerivatives(object):
     @cython.boundscheck(False)
     cpdef double dy(self, Vec X, Vec Y, double sign):
     
-        cdef np.uint64_t ix, iy, jx, jy, i, j
-        cdef np.uint64_t xs, xe, ys, ye
+        cdef int ix, iy, jx, jy, i, j
+        cdef int xs, xe, ys, ye
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
@@ -163,13 +163,13 @@ cdef class PETScDerivatives(object):
         cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
         cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
         
-        for j in range(ys, ye):
-            jx = j-ys+2
-            jy = j-ys
+        for i in range(xs, xe):
+            ix = i-xs+2
+            iy = i-xs
             
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
+            for j in range(ys, ye):
+                jx = j-ys+2
+                jy = j-ys
                 
                 ty[iy, jy] = sign * (tx[ix, jx+1] - tx[ix, jx-1]) * 0.5 * self.hy_inv
     

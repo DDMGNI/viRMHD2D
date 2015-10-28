@@ -6,7 +6,7 @@ Created on Jul 10, 2012
 
 cimport numpy as np
 
-from petsc4py.PETSc cimport DMDA, Vec
+from petsc4py.PETSc cimport Vec
 
 
 cdef class PETScPoisson(object):
@@ -17,7 +17,7 @@ cdef class PETScPoisson(object):
     cdef np.float64_t hx
     cdef np.float64_t hy
     
-    cdef DMDA da1
+    cdef object da1
     
     cdef Vec localB
     cdef Vec localX
