@@ -23,6 +23,8 @@ class Diagnostics(object):
         
         assert self.hdf5 != None
         
+        self.eps_plot = 1E-12
+
         
         self.tGrid = self.hdf5['t'][:,0,0]
         self.xGrid = self.hdf5['x'][:]
@@ -85,16 +87,24 @@ class Diagnostics(object):
         self.m_energy   = 0.0
         self.k_energy   = 0.0
         self.energy     = 0.0
+        self.psi_l2     = 0.0
         self.c_helicity = 0.0
         self.m_helicity = 0.0
         
         self.energy_init      = 0.0
+        self.psi_l2_init      = 0.0
         self.c_helicity_init  = 0.0
         self.m_helicity_init  = 0.0
         
         self.energy_error     = 0.0
+        self.psi_l2_error     = 0.0
         self.c_helicity_error = 0.0
         self.m_helicity_error = 0.0
+        
+        self.plot_energy     = False
+        self.plot_psi_l2     = False
+        self.plot_c_helicity = False
+        self.plot_m_helicity = False
         
         self.read_from_hdf5(0)
         self.update_invariants(0)
@@ -115,6 +125,7 @@ class Diagnostics(object):
     
     def update_invariants(self, iTime):
         
+        self.psi_l2     = 0.0
         self.m_energy   = 0.0
         self.k_energy   = 0.0
         self.c_helicity = 0.0
@@ -123,44 +134,48 @@ class Diagnostics(object):
         for ix in range(0, self.nx):
             for iy in range(0, self.ny):
                 
-                self.m_energy += self.A[ix,iy] * self.J[ix,iy]
-                self.k_energy += self.P[ix,iy] * self.O[ix,iy]
-
+                self.m_energy   += self.A[ix,iy] * self.J[ix,iy]
+                self.k_energy   += self.P[ix,iy] * self.O[ix,iy]
+                self.psi_l2     += self.A[ix,iy] * self.A[ix,iy]
                 self.c_helicity += self.A[ix,iy] * self.O[ix,iy]
                 self.m_helicity += self.A[ix,iy]
                 
         
         self.m_energy *= 0.5 * self.hx * self.hy
         self.k_energy *= 0.5 * self.hx * self.hy
-        
-        self.c_helicity  *= self.hx * self.hy
-        self.m_helicity  *= self.hx * self.hy
+        self.psi_l2         *= self.hx * self.hy
+        self.c_helicity     *= self.hx * self.hy
+        self.m_helicity     *= self.hx * self.hy
         
         self.energy   = self.m_energy + self.k_energy 
     
         
         if iTime == 0:
             self.energy_init      = self.energy
+            self.psi_l2_init      = self.psi_l2
             self.c_helicity_init  = self.c_helicity
             self.m_helicity_init  = self.m_helicity
             
             self.energy_error     = 0.0
+            self.psi_l2_error     = 0.0
             self.c_helicity_error = 0.0
             self.m_helicity_error = 0.0
         
+            if np.abs(self.energy_init) < self.eps_plot:
+                self.plot_energy = True
+            
+            if np.abs(self.psi_l2_init) < self.eps_plot:
+                self.plot_psi_l2 = True
+            
+            if np.abs(self.c_helicity_init) < self.eps_plot:
+                self.plot_c_helicity = True
+            
+            if np.abs(self.m_helicity_init) < self.eps_plot:
+                self.plot_m_helicity = True
+            
         else:
-            if self.energy_init < 1E-10:
-                self.energy_error = (self.energy   - self.energy_init)
-            else:
-                self.energy_error = (self.energy   - self.energy_init) / self.energy_init
-            
-            if self.c_helicity_init < 1E-10:
-                self.c_helicity_error = (self.c_helicity - self.c_helicity_init)
-            else:
-                self.c_helicity_error = (self.c_helicity - self.c_helicity_init) / self.c_helicity_init
-            
-            if self.m_helicity_init < 1E-10:
-                self.m_helicity_error = (self.m_helicity - self.m_helicity_init)
-            else:
-                self.m_helicity_error = (self.m_helicity - self.m_helicity_init) / self.m_helicity_init
+            self.energy_error     = ( self.energy     - self.energy_init     ) / self.energy_init
+            self.psi_l2_error     = ( self.psi_l2     - self.psi_l2_init     ) / self.psi_l2_init
+            self.c_helicity_error = ( self.c_helicity - self.c_helicity_init ) / self.c_helicity_init
+            self.m_helicity_error = ( self.m_helicity - self.m_helicity_init ) / self.m_helicity_init
         

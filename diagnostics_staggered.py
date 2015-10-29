@@ -126,6 +126,9 @@ class Diagnostics(object):
                 self.m_energy += self.A[ix,iy] * self.J[ix,iy]
                 self.k_energy += self.P[ix,iy] * self.O[ix,iy]
 
+#                 self.k_energy += 0.5 * ( self.hdf5['P' ][iTime,  :,:].T[ix,iy] * self.hdf5['O' ][iTime,  :,:].T[ix,iy] )
+#                 self.k_energy += 0.5 * ( self.hdf5['P' ][iTime+1,:,:].T[ix,iy] * self.hdf5['O' ][iTime+1,:,:].T[ix,iy] )
+
                 self.c_helicity += self.A[ix,iy] * self.O[ix,iy]
                 self.m_helicity += self.A[ix,iy]
                 
