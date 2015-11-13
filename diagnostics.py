@@ -26,7 +26,7 @@ class Diagnostics(object):
         self.eps_plot = 1E-12
 
         
-        self.tGrid = self.hdf5['t'][:,0,0]
+        self.tGrid = self.hdf5['t'][:,0]
         self.xGrid = self.hdf5['x'][:]
         self.yGrid = self.hdf5['y'][:]
         
@@ -125,21 +125,11 @@ class Diagnostics(object):
     
     def update_invariants(self, iTime):
         
-        self.psi_l2     = 0.0
-        self.m_energy   = 0.0
-        self.k_energy   = 0.0
-        self.c_helicity = 0.0
-        self.m_helicity = 0.0
-        
-        for ix in range(0, self.nx):
-            for iy in range(0, self.ny):
-                
-                self.m_energy   += self.A[ix,iy] * self.J[ix,iy]
-                self.k_energy   += self.P[ix,iy] * self.O[ix,iy]
-                self.psi_l2     += self.A[ix,iy] * self.A[ix,iy]
-                self.c_helicity += self.A[ix,iy] * self.O[ix,iy]
-                self.m_helicity += self.A[ix,iy]
-                
+        self.m_energy   = np.sum( self.A[ix,iy] * self.J[ix,iy] )
+        self.k_energy   = np.sum( self.P[ix,iy] * self.O[ix,iy] )
+        self.psi_l2     = np.sum( self.A[ix,iy] * self.A[ix,iy] )
+        self.c_helicity = np.sum( self.A[ix,iy] * self.O[ix,iy] )
+        self.m_helicity = np.sum( self.A[ix,iy] )
         
         self.m_energy *= 0.5 * self.hx * self.hy
         self.k_energy *= 0.5 * self.hx * self.hy
@@ -150,7 +140,7 @@ class Diagnostics(object):
         self.energy   = self.m_energy + self.k_energy 
     
         
-        if iTime == 0:
+        if iTime == 0 or iTime == 1:
             self.energy_init      = self.energy
             self.psi_l2_init      = self.psi_l2
             self.c_helicity_init  = self.c_helicity
