@@ -22,8 +22,8 @@ from PETScSimplePoisson     import PETScPoisson
 from PETScSimpleNLSolver    import PETScSolver
 
 
-#solver_package = 'superlu_dist'
-solver_package = 'mumps'
+solver_package = 'superlu_dist'
+# solver_package = 'mumps'
 
 
 class petscMHD2D(object):
@@ -82,6 +82,15 @@ class petscMHD2D(object):
         
         
         OptDB = PETSc.Options()
+        
+        OptDB.setValue('snes_ls', 'basic')
+#         OptDB.setValue('snes_ls', 'quadratic')
+
+        OptDB.setValue('pc_asm_type',  'restrict')
+        OptDB.setValue('pc_asm_overlap', 3)
+        OptDB.setValue('sub_ksp_type', 'preonly')
+        OptDB.setValue('sub_pc_type', 'lu')
+        OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
         
         OptDB.setValue('snes_rtol',   cfg['solver']['petsc_snes_rtol'])
         OptDB.setValue('snes_atol',   cfg['solver']['petsc_snes_atol'])
@@ -213,10 +222,11 @@ class petscMHD2D(object):
         self.snes.setFunction(self.petsc_solver.snes_mult, self.f)
         self.snes.setJacobian(self.updateJacobian, self.Jac)
         self.snes.setFromOptions()
-#         self.snes.getKSP().setType('gmres')
-        self.snes.getKSP().setType('preonly')
+        self.snes.getKSP().setType('gmres')
+#         self.snes.getKSP().setType('preonly')
 #         self.snes.getKSP().setNullSpace(self.solver_nullspace)
-        self.snes.getKSP().getPC().setType('lu')
+        self.snes.getKSP().getPC().setType('asm')
+#         self.snes.getKSP().getPC().setType('lu')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
         # place holder for Poisson solver
