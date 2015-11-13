@@ -125,11 +125,11 @@ class Diagnostics(object):
     
     def update_invariants(self, iTime):
         
-        self.m_energy   = np.sum( self.A[ix,iy] * self.J[ix,iy] )
-        self.k_energy   = np.sum( self.P[ix,iy] * self.O[ix,iy] )
-        self.psi_l2     = np.sum( self.A[ix,iy] * self.A[ix,iy] )
-        self.c_helicity = np.sum( self.A[ix,iy] * self.O[ix,iy] )
-        self.m_helicity = np.sum( self.A[ix,iy] )
+        self.m_energy   = np.sum( self.A * self.J )
+        self.k_energy   = np.sum( self.P * self.O )
+        self.psi_l2     = np.sum( self.A * self.A )
+        self.c_helicity = np.sum( self.A * self.O )
+        self.m_helicity = np.sum( self.A )
         
         self.m_energy *= 0.5 * self.hx * self.hy
         self.k_energy *= 0.5 * self.hx * self.hy
