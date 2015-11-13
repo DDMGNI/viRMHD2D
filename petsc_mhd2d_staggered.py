@@ -273,20 +273,47 @@ class petscMHD2D(object):
                 A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], Lx, Ly)
                 P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], Lx, Ly)
         
+        # Fourier Filtering
+        self.nfourier = cfg['initial_data']['nfourier']
+          
+        if self.nfourier >= 0:
+            # obtain whole A vector everywhere
+            scatter, Aglobal = PETSc.Scatter.toAll(self.A)
+            
+            scatter.begin(self.A, Aglobal, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
+            scatter.end  (self.A, Aglobal, PETSc.InsertMode.INSERT, PETSc.ScatterMode.FORWARD)
+            
+            petsc_indices = self.da1.getAO().app2petsc(np.arange(self.nx*self.ny, dtype=np.int32))
+            
+            Ainit = Aglobal.getValues(petsc_indices).copy().reshape((self.ny, self.nx))
+            
+            scatter.destroy()
+            Aglobal.destroy()
+            
+            # compute FFT, cut, compute inverse FFT
+            from scipy.fftpack import rfft, irfft
+            
+            Afft = rfft(Ainit, axis=1)
+            
+            Afft[:,0] = 0.
+            Afft[:,self.nfourier+1:] = 0.
+            
+            A_arr = self.da1.getVecArray(self.A)
+            A_arr[:,:] = irfft(Afft).T[xs:xe, ys:ye] 
+            
+        
+        # compute current and vorticity
         self.derivatives.laplace_vec(self.A, self.J, -1.)
         self.derivatives.laplace_vec(self.P, self.O, -1.)
         
-#         J_arr = self.da1.getVecArray(self.J)
-#         O_arr = self.da1.getVecArray(self.O)
-#         
-#         for i in range(xs, xe):
-#             for j in range(ys, ye):
-#                 J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], Lx, Ly)
-#                 O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], Lx, Ly)
-#         
-#         
-#         # solve for consistent initial psi
-#         self.poisson_ksp.solve(self.O, self.P)
+        J_arr = self.da1.getVecArray(self.J)
+        O_arr = self.da1.getVecArray(self.O)
+        
+        # add perturbations
+        for i in range(xs, xe):
+            for j in range(ys, ye):
+                J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], Lx, Ly)
+                O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], Lx, Ly)
         
         
         # create HDF5 output file
@@ -364,12 +391,6 @@ class petscMHD2D(object):
                     if PETSc.COMM_WORLD.getRank() == 0:
                         print("   Vorticity Solver:  %5i iterations,   funcnorm = %24.16E" % (j, norm1) )
                     
-                    if self.vorticity_snes.getConvergedReason() < 0:
-                        if PETSc.COMM_WORLD.getRank() == 0:
-                            print()
-                            print("   Vorticity Solver not converging...   (Reason: %i)" % (self.vorticity_snes.getConvergedReason()))
-                            print()
-           
                     if norm1 < self.snes_atol or j >= self.snes_max_iter or np.abs(norm1 - norm2) < self.snes_rtol:
                         break
             
