@@ -161,7 +161,7 @@ cdef class PETScDerivatives(object):
         y = self.da1.getVecArray(Y)
         
         cdef double[:,:] tx = x[...]
-        cdefdouble[:,:] ty = y[...]
+        cdef double[:,:] ty = y[...]
         
         for i in range(xs, xe):
             ix = i-xs+2
