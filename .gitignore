@@ -1,0 +1,7 @@
+*.hdf5
+*.pyc
+*.c
+*.so
+build/
+.project
+.pydevproject
