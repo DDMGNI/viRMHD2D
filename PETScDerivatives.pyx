@@ -133,8 +133,8 @@ cdef class PETScDerivatives(object):
         x = self.da1.getVecArray(self.localX)
         y = self.da1.getVecArray(Y)
         
-        cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
-        cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
+        cdef double[:,:] tx = x[...]
+        cdef double[:,:] ty = y[...]
         
         for i in range(xs, xe):
             ix = i-xs+2
@@ -160,8 +160,8 @@ cdef class PETScDerivatives(object):
         x = self.da1.getVecArray(self.localX)
         y = self.da1.getVecArray(Y)
         
-        cdef np.ndarray[np.float64_t, ndim=2] tx = x[...]
-        cdef np.ndarray[np.float64_t, ndim=2] ty = y[...]
+        cdef double[:,:] tx = x[...]
+        cdefdouble[:,:] ty = y[...]
         
         for i in range(xs, xe):
             ix = i-xs+2
