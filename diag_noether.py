@@ -101,10 +101,11 @@ class PlotEnergy(object):
         axesE.set_xlim(self.diagnostics.tGrid[0], self.diagnostics.tGrid[ntMax])
         
         if self.diagnostics.plot_energy:
-            axesE.set_ylabel('$E$', labelpad=15, fontsize=26)
+            axesE.set_ylabel('$E (t)$', labelpad=15, fontsize=24)
         else:
-            axesE.set_ylabel('$(E-E_0) / E_0$', labelpad=15, fontsize=26)
+            axesE.set_ylabel('$(E (t) - E (0)) / E (0)$', labelpad=15, fontsize=24)
         
+        axesE.yaxis.set_label_coords(-0.075, 0.5)
         axesE.yaxis.set_major_formatter(majorFormatter)
         
         for tick in axesE.xaxis.get_major_ticks():
@@ -134,9 +135,11 @@ class PlotEnergy(object):
         axesL.set_xlim(self.diagnostics.tGrid[0], self.diagnostics.tGrid[ntMax])
         
         if self.diagnostics.plot_psi_l2:
-            axesL.set_ylabel('$L^2$', labelpad=15, fontsize=26)
+            axesL.set_ylabel('$C_{L^2} (t)$', labelpad=15, fontsize=24)
+            axesL.yaxis.set_label_coords(-0.075, 0.5)
         else:
-            axesL.set_ylabel('$(L^2-L^2_0) / L^2_0$', labelpad=15, fontsize=26)
+            axesL.set_ylabel('$(C_{L^2} (t) - C_{L^2} (0)) / C_{L^2} (0)$', labelpad=15, fontsize=24)
+            axesL.yaxis.set_label_coords(-0.075, 0.4)
         
         axesL.yaxis.set_major_formatter(majorFormatter)
         
@@ -167,9 +170,11 @@ class PlotEnergy(object):
         axesH.set_xlabel('$t$', labelpad=15, fontsize=26)
         
         if self.diagnostics.plot_c_helicity:
-            axesH.set_ylabel('$H_{c}$', labelpad=15, fontsize=26)
+            axesH.set_ylabel('$C_{\mathrm{CH}} (t)$', labelpad=15, fontsize=24)
+            axesH.yaxis.set_label_coords(-0.075, 0.5)
         else:
-            axesH.set_ylabel('$(H_{c}-H_{c,0}) / H_{c,0}$', labelpad=15, fontsize=26)
+            axesH.set_ylabel('$(C_{\mathrm{CH}} (t) - C_{\mathrm{CH}} (0)) / C_{\mathrm{CH}} (0)$', labelpad=15, fontsize=24)
+            axesH.yaxis.set_label_coords(-0.075, 0.37)
         
         axesH.yaxis.set_major_formatter(majorFormatter)
         
@@ -201,9 +206,11 @@ class PlotEnergy(object):
         axesM.set_xlim(self.diagnostics.tGrid[0], self.diagnostics.tGrid[ntMax])
         
         if self.diagnostics.plot_m_helicity:
-            axesM.set_ylabel('$H_{m}$', labelpad=15, fontsize=26)
+            axesM.set_ylabel('$C_{\mathrm{MH}} (t)$', labelpad=15, fontsize=24)
+            axesM.yaxis.set_label_coords(-0.075, 0.5)
         else:
-            axesM.set_ylabel('$(H_{m}-H_{m,0}) / H_{m,0}$', labelpad=15, fontsize=26)
+            axesM.set_ylabel('$(C_{\mathrm{MH}} (t) - C_{\mathrm{MH}} (0)) / C_{\mathrm{MH}} (0)$', labelpad=15, fontsize=24)
+            axesM.yaxis.set_label_coords(-0.075, 0.37)
         
         axesM.yaxis.set_major_formatter(majorFormatter)
         
