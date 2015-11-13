@@ -24,6 +24,7 @@ from PETScSimpleNLSolver    import PETScSolver
 
 solver_package = 'superlu_dist'
 # solver_package = 'mumps'
+# solver_package = 'pastix'
 
 
 class petscMHD2D(object):
@@ -100,6 +101,11 @@ class petscMHD2D(object):
         OptDB.setValue('ksp_rtol',   cfg['solver']['petsc_ksp_rtol'])
         OptDB.setValue('ksp_atol',   cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', cfg['solver']['petsc_ksp_max_iter'])
+        
+#        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
+#        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
+        OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
+        OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
         
         OptDB.setValue('ksp_monitor',  '')
         OptDB.setValue('snes_monitor', '')
@@ -297,7 +303,7 @@ class petscMHD2D(object):
             
             Afft = rfft(Ainit, axis=1)
             
-            Afft[:,0] = 0.
+#             Afft[:,0] = 0.
             Afft[:,self.nfourier+1:] = 0.
             
             A_arr = self.da1.getVecArray(self.A)
