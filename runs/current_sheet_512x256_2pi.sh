@@ -43,4 +43,4 @@ export LD_PRELOAD=/afs/@cell/common/soft/intel/ics2013/14.0/compiler/lib/intel64
 export RUN_DIR=/u/mkraus/Codes/viRMHD2D
 cd $RUN_DIR
 
-mpiexec -perhost 16 -l -n 16 python3.3 petsc_mhd2d_gmres.py runs/$RUNID.cfg 
+mpiexec -perhost 16 -l -n 16 python3.3 petsc_mhd2d.py runs/$RUNID.cfg 
