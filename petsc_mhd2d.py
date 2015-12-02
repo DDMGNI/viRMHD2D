@@ -189,6 +189,7 @@ class petscMHD2D(object):
         x0_arr = self.da4.getVecArray(self.x0)[...]
         
         x0_arr[:, :, 2] = 1.
+        self.x0.assemble()
         self.x0.normalize()
         
         self.solver_nullspace  = PETSc.NullSpace().create(constant=False, vectors=(self.x0,))

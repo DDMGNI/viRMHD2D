@@ -22,8 +22,8 @@ from PETScSimplePoisson     import PETScPoisson
 from PETScSimpleNLSolver    import PETScSolver
 
 
-solver_package = 'superlu_dist'
-# solver_package = 'mumps'
+# solver_package = 'superlu_dist'
+solver_package = 'mumps'
 # solver_package = 'pastix'
 
 
@@ -84,8 +84,8 @@ class petscMHD2D(object):
         
         OptDB = PETSc.Options()
         
-        OptDB.setValue('snes_ls', 'basic')
-#         OptDB.setValue('snes_ls', 'quadratic')
+#         OptDB.setValue('snes_ls', 'basic')
+        OptDB.setValue('snes_ls', 'quadratic')
 
         OptDB.setValue('pc_asm_type',  'restrict')
         OptDB.setValue('pc_asm_overlap', 3)
@@ -102,10 +102,10 @@ class petscMHD2D(object):
         OptDB.setValue('ksp_atol',   cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', cfg['solver']['petsc_ksp_max_iter'])
         
-#        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
-#        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
-        OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
-        OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
+# #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
+# #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
+#         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
+#         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
         
         OptDB.setValue('ksp_monitor',  '')
         OptDB.setValue('snes_monitor', '')
@@ -194,7 +194,8 @@ class petscMHD2D(object):
         self.x0.set(0.)
         x0_arr = self.da4.getVecArray(self.x0)[...]
         
-        x0_arr[:, :, 2] = 1.
+        x0_arr[:,:,2] = 1.
+        self.x0.assemble()
         self.x0.normalize()
         
         self.solver_nullspace  = PETSc.NullSpace().create(constant=False, vectors=(self.x0,))
