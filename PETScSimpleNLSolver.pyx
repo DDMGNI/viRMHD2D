@@ -18,8 +18,8 @@ from PETScDerivatives import PETScDerivatives
 
 cdef class PETScSolver(object):
     '''
-    The ScipySparse class implements a couple of solvers for the Vlasov-Poisson system
-    built on top of the SciPy Sparse package.
+    The PETScSolver class implements a nonlinear solver for the reduced MHD system
+    built on top of the PETSc SNES module.
     '''
     
     def __init__(self, object da1, object da4,
