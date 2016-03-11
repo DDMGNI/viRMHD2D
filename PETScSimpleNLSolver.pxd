@@ -30,6 +30,7 @@ cdef class PETScSolver(object):
     cdef Vec Xh
     cdef Vec Xp
     
+    cdef Vec localXd
     cdef Vec localXp
     cdef Vec localXh
     

@@ -224,16 +224,20 @@ class petscMHD2D(object):
         self.Jac.setOption(self.Jac.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Jac.setUp()
         
+        # initialise matrixfree Jacobian
+        self.Jmf = PETSc.Mat().createPython([self.x.getSizes(), self.b.getSizes()], 
+                                            context=self.petsc_solver,
+                                            comm=PETSc.COMM_WORLD)
+        self.Jmf.setUp()
+
         # create nonlinear solver
         self.snes = PETSc.SNES().create()
         self.snes.setFunction(self.petsc_solver.snes_function, self.f)
-        self.snes.setJacobian(self.updateJacobian, self.Jac)
+        self.snes.setJacobian(self.updateJacobian, self.Jmf, self.Jac)
         self.snes.setFromOptions()
         self.snes.getKSP().setType('gmres')
-#         self.snes.getKSP().setType('preonly')
 #         self.snes.getKSP().setNullSpace(self.solver_nullspace)
         self.snes.getKSP().getPC().setType('asm')
-#         self.snes.getKSP().getPC().setType('lu')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
         # place holder for Poisson solver
@@ -410,7 +414,7 @@ class petscMHD2D(object):
     
     def updateJacobian(self, snes, X, J, P):
         self.petsc_solver.update_previous(X)
-        self.petsc_solver.formMat(J)
+        self.petsc_solver.formMat(P)
 #         J.setNullSpace(self.solver_nullspace)
     
     

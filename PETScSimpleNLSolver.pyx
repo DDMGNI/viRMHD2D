@@ -51,6 +51,7 @@ cdef class PETScSolver(object):
         self.Xh = self.da4.createGlobalVec()
         
         # create local vectors
+        self.localXd = da4.createLocalVec()
         self.localXp = da4.createLocalVec()
         self.localXh = da4.createLocalVec()
         
@@ -304,7 +305,83 @@ cdef class PETScSolver(object):
         A.assemble()
         
     
+    def mult(self, Mat mat, Vec X, Vec Y):
+        self.matrix_mult(X, Y)
+        
     
+    @cython.boundscheck(False)
+    def matrix_mult(self, Vec X, Vec Y):
+        cdef int i, j
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
+        
+        (xs, xe), (ys, ye) = self.da4.getRanges()
+        
+        self.da4.globalToLocal(X,       self.localXd)
+        self.da4.globalToLocal(self.Xp, self.localXp)
+        self.da4.globalToLocal(self.Xh, self.localXh)
+        
+        cdef np.ndarray[double, ndim=3] y  = self.da4.getVecArray(Y)[...]
+        
+        cdef np.ndarray[double, ndim=3] xd = self.da4.getVecArray(self.localXd)[...]
+        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
+        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
+        
+        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
+        
+        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
+        
+        cdef double[:,:] Ad = xd[...][:,:,0]
+        cdef double[:,:] Jd = xd[...][:,:,1]
+        cdef double[:,:] Pd = xd[...][:,:,2]
+        cdef double[:,:] Od = xd[...][:,:,3]
+        
+        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
+        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
+        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
+        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
+        
+        
+        for i in range(xs, xe):
+            ix = i-xs+2
+            iy = i-xs
+            
+            for j in range(ys, ye):
+                jx = j-ys+2
+                jy = j-ys
+                
+                # magnetic potential
+                y[iy, jy, 0] = \
+                             + Ad[ix,jx] * self.ht_inv \
+                             + 0.5 * self.derivatives.arakawa(P_ave, Ad, ix, jx) \
+                             + 0.5 * self.derivatives.arakawa(Pd, A_ave, ix, jx)
+                
+                # current density
+                y[iy, jy, 1] = \
+                             - self.derivatives.laplace(Ad, ix, jx) \
+                             - Jd[ix, jx]
+                
+                # streaming function
+                y[iy, jy, 2] = \
+                             - self.derivatives.laplace(Pd, ix, jx) \
+                             - Od[ix, jx]
+                
+                # vorticity
+                y[iy, jy, 3] = \
+                             + Od[ix,jx] * self.ht_inv \
+                             + 0.5 * self.derivatives.arakawa(P_ave, Od, ix, jx) \
+                             + 0.5 * self.derivatives.arakawa(Pd, O_ave, ix, jx) \
+                             + 0.5 * self.derivatives.arakawa(J_ave, Ad, ix, jx) \
+                             + 0.5 * self.derivatives.arakawa(Jd, A_ave, ix, jx)
+
+
+   
     def snes_function(self, SNES snes, Vec X, Vec Y):
         self.function(X, Y)
         
