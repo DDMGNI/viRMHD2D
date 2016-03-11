@@ -23,8 +23,8 @@ cdef class PETScSolver(object):
     '''
     
     def __init__(self, object da1, object da4,
-                 np.uint64_t nx, np.uint64_t ny,
-                 np.float64_t ht, np.float64_t hx, np.float64_t hy):
+                 int nx, int ny,
+                 double ht, double hx, double hy):
         '''
         Constructor
         '''
@@ -69,27 +69,27 @@ cdef class PETScSolver(object):
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        cdef int i, j
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da4.getRanges()
         
         self.da4.globalToLocal(self.Xp, self.localXp)
         self.da4.globalToLocal(self.Xh, self.localXh)
         
-        cdef np.ndarray[np.float64_t, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[np.float64_t, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
+        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
+        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
         
-        cdef np.ndarray[np.float64_t, ndim=2] Ap = xp[...][:,:,0]
-        cdef np.ndarray[np.float64_t, ndim=2] Jp = xp[...][:,:,1]
-        cdef np.ndarray[np.float64_t, ndim=2] Pp = xp[...][:,:,2]
-        cdef np.ndarray[np.float64_t, ndim=2] Op = xp[...][:,:,3]
+        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
         
-        cdef np.ndarray[np.float64_t, ndim=2] Ah = xh[...][:,:,0]
-        cdef np.ndarray[np.float64_t, ndim=2] Jh = xh[...][:,:,1]
-        cdef np.ndarray[np.float64_t, ndim=2] Ph = xh[...][:,:,2]
-        cdef np.ndarray[np.float64_t, ndim=2] Oh = xh[...][:,:,3]
+        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
         
         cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
         cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
@@ -310,29 +310,29 @@ cdef class PETScSolver(object):
         
     
     def mult(self, Vec X, Vec Y):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        cdef int i, j
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da4.getRanges()
         
         self.da4.globalToLocal(X,       self.localXp)
         self.da4.globalToLocal(self.Xh, self.localXh)
         
-        cdef np.ndarray[np.float64_t, ndim=3] y  = self.da4.getVecArray(Y)[...]
+        cdef np.ndarray[double, ndim=3] y  = self.da4.getVecArray(Y)[...]
         
-        cdef np.ndarray[np.float64_t, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[np.float64_t, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
+        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
+        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
         
-        cdef np.ndarray[np.float64_t, ndim=2] Ap = xp[...][:,:,0]
-        cdef np.ndarray[np.float64_t, ndim=2] Jp = xp[...][:,:,1]
-        cdef np.ndarray[np.float64_t, ndim=2] Pp = xp[...][:,:,2]
-        cdef np.ndarray[np.float64_t, ndim=2] Op = xp[...][:,:,3]
+        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
         
-        cdef np.ndarray[np.float64_t, ndim=2] Ah = xh[...][:,:,0]
-        cdef np.ndarray[np.float64_t, ndim=2] Jh = xh[...][:,:,1]
-        cdef np.ndarray[np.float64_t, ndim=2] Ph = xh[...][:,:,2]
-        cdef np.ndarray[np.float64_t, ndim=2] Oh = xh[...][:,:,3]
+        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
+        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
+        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
+        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
         
         cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
         cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
