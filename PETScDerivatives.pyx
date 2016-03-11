@@ -72,8 +72,54 @@ cdef class PETScDerivatives(object):
         return result
     
     
+    @cython.boundscheck(False)
+    cpdef arakawa_vec(self, Vec X, Vec Y, Vec A):
+        '''
+        MHD Derivative: Arakawa Bracket
+        '''
+        
+        cdef int i, j, stencil
+        cdef int ix, iy, jx, jy
+        cdef int xs, xe, ys, ye
+        cdef double jpp, jpc, jcp
+
+        (xs, xe), (ys, ye) = self.da1.getRanges()
+        stencil = 1
+        
+        self.da1.globalToLocal(X, self.localX)
+        self.da1.globalToLocal(Y, self.localY)
+        
+        cdef double[:,:] a = self.da1.getVecArray(A)[...]
+        cdef double[:,:] x = self.da1.getVecArray(self.localX)[...]
+        cdef double[:,:] y = self.da1.getVecArray(self.localY)[...]
+        
+        
+        for i in range(xs, xe):
+            ix = i-xs+stencil
+            iy = i-xs
+             
+            for j in range(ys, ye):
+                jx = j-ys+stencil
+                jy = j-ys
+                 
+                jpp = (x[ix+1, jx  ] - x[ix-1, jx  ]) * (y[ix,   jx+1] - y[ix,   jx-1]) \
+                    - (x[ix,   jx+1] - x[ix,   jx-1]) * (y[ix+1, jx  ] - y[ix-1, jx  ])
+                
+                jpc = x[ix+1, jx  ] * (y[ix+1, jx+1] - y[ix+1, jx-1]) \
+                    - x[ix-1, jx  ] * (y[ix-1, jx+1] - y[ix-1, jx-1]) \
+                    - x[ix,   jx+1] * (y[ix+1, jx+1] - y[ix-1, jx+1]) \
+                    + x[ix,   jx-1] * (y[ix+1, jx-1] - y[ix-1, jx-1])
+                
+                jcp = x[ix+1, jx+1] * (y[ix,   jx+1] - y[ix+1, jx  ]) \
+                    - x[ix-1, jx-1] * (y[ix-1, jx  ] - y[ix,   jx-1]) \
+                    - x[ix-1, jx+1] * (y[ix,   jx+1] - y[ix-1, jx  ]) \
+                    + x[ix+1, jx-1] * (y[ix+1, jx  ] - y[ix,   jx-1])
+                
+                a[iy, jy] = (jpp + jpc + jcp) / (12. * self.hx * self.hy)
+        
+        
     
-#     @cython.boundscheck(False)
+    @cython.boundscheck(False)
     cdef double laplace(self, double[:,:] x, int i, int j):
         
         cdef double result
@@ -92,7 +138,7 @@ cdef class PETScDerivatives(object):
         return result
     
 
-#     @cython.boundscheck(False)
+    @cython.boundscheck(False)
     cpdef laplace_vec(self, Vec X, Vec Y, double sign):
     
         cdef int ix, iy, jx, jy, i, j
