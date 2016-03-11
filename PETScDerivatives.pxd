@@ -33,9 +33,9 @@ cdef class PETScDerivatives(object):
     
     
     cdef double arakawa(self, double[:,:] x, double[:,:] h, int i, int j)
-
     cdef double laplace(self, double[:,:] x, int i, int j)
     
+    cpdef arakawa_vec(self, Vec X, Vec Y, Vec A)
     cpdef laplace_vec(self, Vec X, Vec D, double sign)
     
     cpdef double dx(self, Vec X, Vec D, double sign)

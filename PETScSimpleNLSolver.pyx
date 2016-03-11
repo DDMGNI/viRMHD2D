@@ -305,11 +305,11 @@ cdef class PETScSolver(object):
         
     
     
-    def snes_mult(self, SNES snes, Vec X, Vec Y):
-        self.mult(X, Y)
+    def snes_function(self, SNES snes, Vec X, Vec Y):
+        self.function(X, Y)
         
     
-    def mult(self, Vec X, Vec Y):
+    def function(self, Vec X, Vec Y):
         cdef int i, j
         cdef int ix, iy, jx, jy
         cdef int xe, xs, ye, ys
