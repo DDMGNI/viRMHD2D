@@ -45,10 +45,10 @@ if isdir(IMPI_DIR):
     INCLUDE_DIRS += [join(IMPI_DIR, 'include')]
     LIBRARY_DIRS += [join(IMPI_DIR, 'lib')]
 
-if isdir('/opt/local/include/openmpi-gcc48'):
-    INCLUDE_DIRS += ['/opt/local/include/openmpi-gcc48']
-if isdir('/opt/local/lib/openmpi-gcc48'):
-    LIBRARY_DIRS += ['/opt/local/lib/openmpi-gcc48']
+if isdir('/opt/local/include/openmpi-gcc5'):
+    INCLUDE_DIRS += ['/opt/local/include/openmpi-gcc5']
+if isdir('/opt/local/lib/openmpi-gcc5'):
+    LIBRARY_DIRS += ['/opt/local/lib/openmpi-gcc5']
 
 
 ext_modules = [
