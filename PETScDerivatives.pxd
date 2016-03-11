@@ -28,6 +28,7 @@ cdef class PETScDerivatives(object):
     cdef object da1
     
     cdef Vec localX
+    cdef Vec localY
     
     cdef np.ndarray ty
     

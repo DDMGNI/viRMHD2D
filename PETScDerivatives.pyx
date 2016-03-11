@@ -43,6 +43,7 @@ cdef class PETScDerivatives(object):
         
         # create local vectors
         self.localX = da1.createLocalVec()
+        self.localY = da1.createLocalVec()
         
         
     
