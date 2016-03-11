@@ -226,7 +226,7 @@ class petscMHD2D(object):
         
         # create nonlinear solver
         self.snes = PETSc.SNES().create()
-        self.snes.setFunction(self.petsc_solver.snes_mult, self.f)
+        self.snes.setFunction(self.petsc_solver.snes_function, self.f)
         self.snes.setJacobian(self.updateJacobian, self.Jac)
         self.snes.setFromOptions()
         self.snes.getKSP().setType('gmres')
@@ -432,7 +432,7 @@ class petscMHD2D(object):
             self.snes.solve(None, self.x)
             
             # compute function norm
-            self.petsc_solver.mult(self.x, self.f)
+            self.petsc_solver.function(self.x, self.f)
             norm = self.f.norm()
             
             # output some solver info
@@ -568,7 +568,7 @@ class petscMHD2D(object):
                         
                         
                         # compute J.e
-                        self.Jac.mult(ex, dJ)
+                        self.Jac.function(ex, dJ)
                         
                         dJ_arr = self.da4.getVecArray(dJ)
                         Jx_arr = self.da4.getVecArray(Jx)
@@ -580,7 +580,7 @@ class petscMHD2D(object):
                         dx_arr = self.da4.getVecArray(dx)
                         dx_arr[(ix+sx) % self.nx, (iy+sy) % self.ny, ifield] -= eps
                         
-                        self.petsc_solver.mult(dx, Fxm)
+                        self.petsc_solver.function(dx, Fxm)
                         
                         
                         # compute F(x + eps ex)
@@ -588,7 +588,7 @@ class petscMHD2D(object):
                         dx_arr = self.da4.getVecArray(dx)
                         dx_arr[(ix+sx) % self.nx, (iy+sy) % self.ny, ifield] += eps
                         
-                        self.petsc_solver.mult(dx, Fxp)
+                        self.petsc_solver.function(dx, Fxp)
                         
                         
                         # compute dF = [F(x + eps ex) - F(x - eps ex)] / (2 eps)
