@@ -61,8 +61,8 @@ ext_modules = [
                   extra_compile_args=CARGS,
                   extra_link_args=LARGS
                  ),
-        Extension("PETScSimpleNLSolver",
-                  sources=["PETScSimpleNLSolver.pyx"],
+        Extension("PETScNonlinearSolverArakawaJ1CFD2",
+                  sources=["PETScNonlinearSolverArakawaJ1CFD2.pyx"],
                   include_dirs=INCLUDE_DIRS + [os.curdir],
                   libraries=LIBRARIES,
                   library_dirs=LIBRARY_DIRS,
@@ -70,8 +70,8 @@ ext_modules = [
                   extra_compile_args=CARGS,
                   extra_link_args=LARGS
                  ),
-        Extension("PETScSimpleOhmsLaw",
-                  sources=["PETScSimpleOhmsLaw.pyx"],
+        Extension("PETScOhmsLawArakawaJ1",
+                  sources=["PETScOhmsLawArakawaJ1.pyx"],
                   include_dirs=INCLUDE_DIRS + [os.curdir],
                   libraries=LIBRARIES,
                   library_dirs=LIBRARY_DIRS,
@@ -79,8 +79,8 @@ ext_modules = [
                   extra_compile_args=CARGS,
                   extra_link_args=LARGS
                  ),
-        Extension("PETScSimplePoisson",
-                  sources=["PETScSimplePoisson.pyx"],
+        Extension("PETScPoissonCFD2",
+                  sources=["PETScPoissonCFD2.pyx"],
                   include_dirs=INCLUDE_DIRS + [os.curdir],
                   libraries=LIBRARIES,
                   library_dirs=LIBRARY_DIRS,
@@ -88,8 +88,8 @@ ext_modules = [
                   extra_compile_args=CARGS,
                   extra_link_args=LARGS
                  ),
-        Extension("PETScSimpleVorticity",
-                  sources=["PETScSimpleVorticity.pyx"],
+        Extension("PETScVorticityArakawaJ1",
+                  sources=["PETScVorticityArakawaJ1.pyx"],
                   include_dirs=INCLUDE_DIRS + [os.curdir],
                   libraries=LIBRARIES,
                   library_dirs=LIBRARY_DIRS,

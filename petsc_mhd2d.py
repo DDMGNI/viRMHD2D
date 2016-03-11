@@ -16,10 +16,9 @@ import time
 
 from config import Config
 
-from PETScDerivatives       import PETScDerivatives
-from PETScSimplePoisson     import PETScPoisson
-# from PETScSimpleNLMatrix    import PETScMatrix
-from PETScSimpleNLSolver    import PETScSolver
+from PETScDerivatives                  import PETScDerivatives
+from PETScPoissonCFD2                  import PETScPoisson
+from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 
 solver_package = 'superlu_dist'

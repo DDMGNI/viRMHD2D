@@ -16,10 +16,10 @@ import time
 
 from config import Config
 
-from PETScDerivatives       import PETScDerivatives
-from PETScSimpleOhmsLaw     import PETScOhmsLaw
-from PETScSimpleVorticity   import PETScVorticity
-from PETScSimplePoisson     import PETScPoisson
+from PETScDerivatives        import PETScDerivatives
+from PETScOhmsLawArakawaJ1   import PETScOhmsLaw
+from PETScVorticityArakawaJ1 import PETScVorticity
+from PETScPoissonCFD2        import PETScPoisson
 
 
 #solver_package = 'superlu_dist'
