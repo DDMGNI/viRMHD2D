@@ -80,7 +80,6 @@ class petscMHD2D(object):
         if PETSc.COMM_WORLD.getRank() == 0:
             self.time.setValue(0, 0.0)
         
-        
         OptDB = PETSc.Options()
         
 #         OptDB.setValue('snes_ls', 'basic')
@@ -203,7 +202,6 @@ class petscMHD2D(object):
         
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
-#         self.petsc_matrix   = PETScMatrix(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
         self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
         
         
@@ -235,7 +233,6 @@ class petscMHD2D(object):
         self.snes.setJacobian(self.updateJacobian, self.Jmf, self.Jac)
         self.snes.setFromOptions()
         self.snes.getKSP().setType('gmres')
-#         self.snes.getKSP().setNullSpace(self.solver_nullspace)
         self.snes.getKSP().getPC().setType('asm')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
@@ -414,7 +411,6 @@ class petscMHD2D(object):
     def updateJacobian(self, snes, X, J, P):
         self.petsc_solver.update_previous(X)
         self.petsc_solver.formMat(P)
-#         J.setNullSpace(self.solver_nullspace)
     
     
     def run(self):

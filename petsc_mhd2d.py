@@ -197,7 +197,6 @@ class petscMHD2D(object):
         
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
-#         self.petsc_matrix   = PETScMatrix(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
         self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
         
         
@@ -206,11 +205,6 @@ class petscMHD2D(object):
         self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
         self.Pm.setNullSpace(self.poisson_nullspace)
-        
-        # initialise linear matrix
-        self.M = self.da4.createMat()
-        self.M.setOption(self.M.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-        self.M.setUp()
         
         # initialise Jacobian
         self.Jac = self.da4.createMat()
