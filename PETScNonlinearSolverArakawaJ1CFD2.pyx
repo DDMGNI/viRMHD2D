@@ -24,7 +24,8 @@ cdef class PETScSolver(object):
     
     def __init__(self, object da1, object da4,
                  int nx, int ny,
-                 double ht, double hx, double hy):
+                 double ht, double hx, double hy,
+                 object pc=None):
         '''
         Constructor
         '''
@@ -32,6 +33,9 @@ cdef class PETScSolver(object):
         # distributed arrays
         self.da1 = da1
         self.da4 = da4
+        
+        # preconditioner
+        self.pc = pc
         
         # grid
         self.nx = nx
@@ -49,6 +53,7 @@ cdef class PETScSolver(object):
         # create history vector
         self.Xp = self.da4.createGlobalVec()
         self.Xh = self.da4.createGlobalVec()
+        self.Yd = self.da4.createGlobalVec()
         
         # create local vectors
         self.localXd = da4.createLocalVec()
@@ -98,7 +103,7 @@ cdef class PETScSolver(object):
         cdef double[:,:] O_ave = 0.5 * (Op + Oh)
         
         
-        cdef double arak_fac = 0.5 * self.hx_inv * self.hy_inv / 12.
+        cdef double arak_fac = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
         cdef double lapx_fac = self.hx_inv**2
         cdef double lapy_fac = self.hy_inv**2
         
@@ -130,7 +135,7 @@ cdef class PETScSolver(object):
                         ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
                         ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
                                      - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j  ), self.ht_inv),
+                        ((i,   j  ), 1.),
                         ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
                                      + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
                         ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
@@ -289,7 +294,7 @@ cdef class PETScSolver(object):
                         ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
                         ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
                                      - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i,   j  ), self.ht_inv),
+                        ((i,   j  ), 1.),
                         ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
                                      + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
                         ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
@@ -317,13 +322,17 @@ cdef class PETScSolver(object):
         
         (xs, xe), (ys, ye) = self.da4.getRanges()
         
-        self.da4.globalToLocal(X,       self.localXd)
         self.da4.globalToLocal(self.Xp, self.localXp)
         self.da4.globalToLocal(self.Xh, self.localXh)
         
+        cdef double[:,:] Ad
+        cdef double[:,:] Jd
+        cdef double[:,:] Pd
+        cdef double[:,:] Od
+        
         cdef np.ndarray[double, ndim=3] y  = self.da4.getVecArray(Y)[...]
         
-        cdef np.ndarray[double, ndim=3] xd = self.da4.getVecArray(self.localXd)[...]
+        cdef np.ndarray[double, ndim=3] xd
         cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
         cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
         
@@ -337,15 +346,24 @@ cdef class PETScSolver(object):
         cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
         cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
         
-        cdef double[:,:] Ad = xd[...][:,:,0]
-        cdef double[:,:] Jd = xd[...][:,:,1]
-        cdef double[:,:] Pd = xd[...][:,:,2]
-        cdef double[:,:] Od = xd[...][:,:,3]
-        
         cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
         cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
         cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
         cdef double[:,:] O_ave = 0.5 * (Op + Oh)
+        
+        if self.pc == None:
+            self.da4.globalToLocal(X, self.localXd)
+            xd = self.da4.getVecArray(self.localXd)[...]
+        
+        else:
+            self.pc.solve(X, self.Yd)
+            self.da4.globalToLocal(self.Yd, self.localXd)
+            xd = self.da4.getVecArray(self.localXd)[...]
+        
+        Ad = xd[...][:,:,0]
+        Jd = xd[...][:,:,1]
+        Pd = xd[...][:,:,2]
+        Od = xd[...][:,:,3]
         
         
         for i in range(xs, xe):
@@ -358,9 +376,9 @@ cdef class PETScSolver(object):
                 
                 # magnetic potential
                 y[iy, jy, 0] = \
-                             + Ad[ix,jx] * self.ht_inv \
-                             + 0.5 * self.derivatives.arakawa(P_ave, Ad, ix, jx) \
-                             + 0.5 * self.derivatives.arakawa(Pd, A_ave, ix, jx)
+                             + Ad[ix,jx] \
+                             + 0.5 * self.ht * self.derivatives.arakawa(P_ave, Ad, ix, jx) \
+                             + 0.5 * self.ht * self.derivatives.arakawa(Pd, A_ave, ix, jx)
                 
                 # current density
                 y[iy, jy, 1] = \
@@ -374,11 +392,11 @@ cdef class PETScSolver(object):
                 
                 # vorticity
                 y[iy, jy, 3] = \
-                             + Od[ix,jx] * self.ht_inv \
-                             + 0.5 * self.derivatives.arakawa(P_ave, Od, ix, jx) \
-                             + 0.5 * self.derivatives.arakawa(Pd, O_ave, ix, jx) \
-                             + 0.5 * self.derivatives.arakawa(J_ave, Ad, ix, jx) \
-                             + 0.5 * self.derivatives.arakawa(Jd, A_ave, ix, jx)
+                             + Od[ix,jx] \
+                             + 0.5 * self.ht * self.derivatives.arakawa(P_ave, Od, ix, jx) \
+                             + 0.5 * self.ht * self.derivatives.arakawa(Pd, O_ave, ix, jx) \
+                             + 0.5 * self.ht * self.derivatives.arakawa(J_ave, Ad, ix, jx) \
+                             + 0.5 * self.ht * self.derivatives.arakawa(Jd, A_ave, ix, jx)
 
 
    
@@ -427,8 +445,8 @@ cdef class PETScSolver(object):
                 
                 # magnetic potential
                 y[iy, jy, 0] = \
-                             + (Ap[ix,jx] - Ah[ix,jx] ) * self.ht_inv \
-                             + self.derivatives.arakawa(P_ave, A_ave, ix, jx)
+                             + Ap[ix,jx] - Ah[ix,jx] \
+                             + self.ht * self.derivatives.arakawa(P_ave, A_ave, ix, jx)
                 
                 # current density
                 y[iy, jy, 1] = \
@@ -442,7 +460,7 @@ cdef class PETScSolver(object):
                 
                 # vorticity
                 y[iy, jy, 3] = \
-                             + (Op[ix,jx] - Oh[ix,jx] ) * self.ht_inv \
-                             + self.derivatives.arakawa(P_ave, O_ave, ix, jx) \
-                             + self.derivatives.arakawa(J_ave, A_ave, ix, jx)
+                             + Op[ix,jx] - Oh[ix,jx] \
+                             + self.ht * self.derivatives.arakawa(P_ave, O_ave, ix, jx) \
+                             + self.ht * self.derivatives.arakawa(J_ave, A_ave, ix, jx)
 

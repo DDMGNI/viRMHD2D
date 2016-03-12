@@ -27,8 +27,11 @@ cdef class PETScSolver(object):
     cdef object da1
     cdef object da4
     
+    cdef object pc
+    
     cdef Vec Xh
     cdef Vec Xp
+    cdef Vec Yd
     
     cdef Vec localXd
     cdef Vec localXp
