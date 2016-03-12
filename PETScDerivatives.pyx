@@ -82,10 +82,13 @@ cdef class PETScDerivatives(object):
         cdef int i, j, stencil
         cdef int ix, iy, jx, jy
         cdef int xs, xe, ys, ye
-        cdef double jpp, jpc, jcp
+        cdef double jpp, jpc, jcp, fac
 
         (xs, xe), (ys, ye) = self.da1.getRanges()
+        
         stencil = 1
+        
+        fac = self.hx_inv * self.hy_inv / 12.
         
         self.da1.globalToLocal(X, self.localX)
         self.da1.globalToLocal(Y, self.localY)
@@ -116,7 +119,7 @@ cdef class PETScDerivatives(object):
                     - x[ix-1, jx+1] * (y[ix,   jx+1] - y[ix-1, jx  ]) \
                     + x[ix+1, jx-1] * (y[ix+1, jx  ] - y[ix,   jx-1])
                 
-                a[iy, jy] = (jpp + jpc + jcp) / (12. * self.hx * self.hy)
+                a[iy, jy] = fac * (jpp + jpc + jcp)
         
         
     
