@@ -66,6 +66,11 @@ cdef class PETScSolver(object):
         self.Ph = self.da1.createGlobalVec()
         self.Oh = self.da1.createGlobalVec()
         
+        self.Aa = self.da1.createGlobalVec()
+        self.Ja = self.da1.createGlobalVec()
+        self.Pa = self.da1.createGlobalVec()
+        self.Oa = self.da1.createGlobalVec()
+        
         # create working vector
         self.YA = self.da1.createGlobalVec()
         self.YJ = self.da1.createGlobalVec()
@@ -81,11 +86,28 @@ cdef class PETScSolver(object):
         self.T  = self.da1.createGlobalVec()
         self.T1 = self.da1.createGlobalVec()
         self.T2 = self.da1.createGlobalVec()
+        self.T3 = self.da1.createGlobalVec()
+        self.T4 = self.da1.createGlobalVec()
         
         # create local vectors
         self.localXd = da4.createLocalVec()
         self.localXp = da4.createLocalVec()
         self.localXh = da4.createLocalVec()
+        
+        self.localAa = self.da1.createLocalVec()
+        self.localJa = self.da1.createLocalVec()
+        self.localPa = self.da1.createLocalVec()
+        self.localOa = self.da1.createLocalVec()
+        
+        self.localAp = self.da1.createLocalVec()
+        self.localJp = self.da1.createLocalVec()
+        self.localPp = self.da1.createLocalVec()
+        self.localOp = self.da1.createLocalVec()
+        
+        self.localAh = self.da1.createLocalVec()
+        self.localJh = self.da1.createLocalVec()
+        self.localPh = self.da1.createLocalVec()
+        self.localOh = self.da1.createLocalVec()
         
         # create derivatives object
         self.derivatives = PETScDerivatives(da1, nx, ny, ht, hx, hy)
@@ -95,61 +117,58 @@ cdef class PETScSolver(object):
     def update_history(self, Vec X):
         X.copy(self.Xh)
         
-#         x = self.da4.getVecArray(self.Xh)
-#         a = self.da1.getVecArray(self.Ah)
-#         j = self.da1.getVecArray(self.Jh)
-#         p = self.da1.getVecArray(self.Ph)
-#         o = self.da1.getVecArray(self.Oh)
-#         
-#         a[:,:] = x[:,:,0]
-#         j[:,:] = x[:,:,1]
-#         p[:,:] = x[:,:,2]
-#         o[:,:] = x[:,:,3]
+        x = self.da4.getVecArray(self.Xh)
+         
+        self.da1.getVecArray(self.Ah)[:,:] = x[:,:,0]
+        self.da1.getVecArray(self.Jh)[:,:] = x[:,:,1]
+        self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
+        self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
+        
+#         self.da1.globalToLocal(self.Ah, self.localAh)
+#         self.da1.globalToLocal(self.Jh, self.localJh)
+#         self.da1.globalToLocal(self.Ph, self.localPh)
+#         self.da1.globalToLocal(self.Oh, self.localOh)
         
     
     def update_previous(self, Vec X):
         X.copy(self.Xp)
         
-#         x = self.da4.getVecArray(self.Xp)
-#         a = self.da1.getVecArray(self.Ap)
-#         j = self.da1.getVecArray(self.Jp)
-#         p = self.da1.getVecArray(self.Pp)
-#         o = self.da1.getVecArray(self.Op)
-#         
-#         a[:,:] = x[:,:,0]
-#         j[:,:] = x[:,:,1]
-#         p[:,:] = x[:,:,2]
-#         o[:,:] = x[:,:,3]
+        x = self.da4.getVecArray(self.Xp)
+         
+        self.da1.getVecArray(self.Ap)[:,:] = x[:,:,0]
+        self.da1.getVecArray(self.Jp)[:,:] = x[:,:,1]
+        self.da1.getVecArray(self.Pp)[:,:] = x[:,:,2]
+        self.da1.getVecArray(self.Op)[:,:] = x[:,:,3]
+        
+        self.da1.getVecArray(self.Aa)[:,:] = 0.5 * (self.da1.getVecArray(self.Ap)[:,:] + self.da1.getVecArray(self.Ah)[:,:])
+        self.da1.getVecArray(self.Ja)[:,:] = 0.5 * (self.da1.getVecArray(self.Jp)[:,:] + self.da1.getVecArray(self.Jh)[:,:])
+        self.da1.getVecArray(self.Pa)[:,:] = 0.5 * (self.da1.getVecArray(self.Pp)[:,:] + self.da1.getVecArray(self.Ph)[:,:])
+        self.da1.getVecArray(self.Oa)[:,:] = 0.5 * (self.da1.getVecArray(self.Op)[:,:] + self.da1.getVecArray(self.Oh)[:,:])
+        
+#         self.da1.globalToLocal(self.Ap, self.localAp)
+#         self.da1.globalToLocal(self.Jp, self.localJp)
+#         self.da1.globalToLocal(self.Pp, self.localPp)
+#         self.da1.globalToLocal(self.Op, self.localOp)
+        
+        self.da1.globalToLocal(self.Aa, self.localAa)
+        self.da1.globalToLocal(self.Ja, self.localJa)
+        self.da1.globalToLocal(self.Pa, self.localPa)
+        self.da1.globalToLocal(self.Oa, self.localOa)
         
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
-        cdef int i, j
+        cdef int i, j, stencil
         cdef int ix, iy, jx, jy
         cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da4.getRanges()
+        stencil = self.da1.getStencilWidth()
         
-        self.da4.globalToLocal(self.Xp, self.localXp)
-        self.da4.globalToLocal(self.Xh, self.localXh)
-        
-        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
-        
-        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
-        
-        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
-        
-        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
-        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
-        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
-        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
+        cdef double[:,:] A_ave = self.da1.getVecArray(self.localAa)[...]
+        cdef double[:,:] J_ave = self.da1.getVecArray(self.localJa)[...]
+        cdef double[:,:] P_ave = self.da1.getVecArray(self.localPa)[...]
+        cdef double[:,:] O_ave = self.da1.getVecArray(self.localOa)[...]
         
         
         cdef double arak_fac = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
@@ -164,10 +183,10 @@ cdef class PETScSolver(object):
         
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 
                 row.index = (i,j)
                 
@@ -359,242 +378,91 @@ cdef class PETScSolver(object):
         A.assemble()
         
     
-    def mult(self, Mat mat, Vec X, Vec Y):
-        self.matrix_mult(X, Y)
-        
-    
     @cython.boundscheck(False)
-    def matrix_mult(self, Vec X, Vec Y):
-        cdef int i, j
-        cdef int ix, iy, jx, jy
-        cdef int xe, xs, ye, ys
-        
-        (xs, xe), (ys, ye) = self.da4.getRanges()
-        
-        self.da4.globalToLocal(self.Xp, self.localXp)
-        self.da4.globalToLocal(self.Xh, self.localXh)
-         
-        cdef double[:,:] Ad
-        cdef double[:,:] Jd
-        cdef double[:,:] Pd
-        cdef double[:,:] Od
-        
-#         Ad = self.da1.getVecArray(self.Ad)#[...]
-#         Jd = self.da1.getVecArray(self.Jd)#[...]
-#         Pd = self.da1.getVecArray(self.Pd)#[...]
-#         Od = self.da1.getVecArray(self.Od)#[...]
-        
-        cdef np.ndarray[double, ndim=3] y  = self.da4.getVecArray(Y)[...]
-        
-        cdef np.ndarray[double, ndim=3] xd
-        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
-          
-        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
-          
-        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
-          
-        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
-        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
-        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
-        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
+    def mult(self, Mat mat, Vec X, Vec Y):
         
         if self.pc == None:
-            self.da4.globalToLocal(X, self.localXd)
-#             xd = self.da4.getVecArray(X)#[...]
+            xd = self.da4.getVecArray(X)
         else:
             self.pc.solve(X, self.Yd)
-            self.da4.globalToLocal(self.Yd, self.localXd)
-#             xd = self.da4.getVecArray(self.Yd)#[...]
+            xd = self.da4.getVecArray(self.Yd)
         
-        xd = self.da4.getVecArray(self.localXd)[...]
-        
-        Ad = xd[:,:,0]
-        Jd = xd[:,:,1]
-        Pd = xd[:,:,2]
-        Od = xd[:,:,3]
-        
-#         Ad[:,:] = xd[:,:,0]
-#         Jd[:,:] = xd[:,:,1]
-#         Pd[:,:] = xd[:,:,2]
-#         Od[:,:] = xd[:,:,3]
-#         
-#         
-#         # magnetic potential
-#         self.Ad.copy(self.YA)
-#          
-#         self.derivatives.arakawa_vec(self.Pp, self.Ad, self.T1)
-#         self.derivatives.arakawa_vec(self.Ph, self.Ad, self.T2)
-#         self.YA.axpy(0.25*self.ht, self.T1)
-#         self.YA.axpy(0.25*self.ht, self.T2)
-#  
-#         self.derivatives.arakawa_vec(self.Pd, self.Ap, self.T1)
-#         self.derivatives.arakawa_vec(self.Pd, self.Ah, self.T2)
-#         self.YA.axpy(0.25*self.ht, self.T1)
-#         self.YA.axpy(0.25*self.ht, self.T2)
-#         
-#         # current density
-#         self.derivatives.laplace_vec(self.Ad, self.YJ, +1.)
-#         self.YJ.axpy(1., self.Jd)
-#         
-#         # streaming function
-#         self.derivatives.laplace_vec(self.Pd, self.YP, +1.)
-#         self.YP.axpy(1., self.Od)
-# 
-#         # vorticity
-#         self.Od.copy(self.YO)
-#          
-#         self.derivatives.arakawa_vec(self.Pp, self.Od, self.T1)
-#         self.derivatives.arakawa_vec(self.Ph, self.Od, self.T2)
-#         self.YO.axpy(0.25*self.ht, self.T1)
-#         self.YO.axpy(0.25*self.ht, self.T2)
-#  
-#         self.derivatives.arakawa_vec(self.Pd, self.Op, self.T1)
-#         self.derivatives.arakawa_vec(self.Pd, self.Oh, self.T2)
-#         self.YO.axpy(0.25*self.ht, self.T1)
-#         self.YO.axpy(0.25*self.ht, self.T2)
-#          
-#         self.derivatives.arakawa_vec(self.Jp, self.Ad, self.T1)
-#         self.derivatives.arakawa_vec(self.Jh, self.Ad, self.T2)
-#         self.YO.axpy(0.25*self.ht, self.T1)
-#         self.YO.axpy(0.25*self.ht, self.T2)
-#  
-#         self.derivatives.arakawa_vec(self.Jd, self.Ap, self.T1)
-#         self.derivatives.arakawa_vec(self.Jd, self.Ah, self.T2)
-#         self.YO.axpy(0.25*self.ht, self.T1)
-#         self.YO.axpy(0.25*self.ht, self.T2)
-#         
-#         
-#         YA = self.da1.getVecArray(self.YA)
-#         YJ = self.da1.getVecArray(self.YJ)
-#         YP = self.da1.getVecArray(self.YP)
-#         YO = self.da1.getVecArray(self.YO)
-#         
-#         y  = self.da4.getVecArray(Y)
-#         
-#         y[:,:,0] = YA[:,:]
-#         y[:,:,1] = YJ[:,:]
-#         y[:,:,2] = YP[:,:]
-#         y[:,:,3] = YO[:,:]
-        
-        
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-             
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                 
-                # magnetic potential
-                y[iy, jy, 0] = Ad[ix,jx] \
-                             + 0.5 * self.ht * self.derivatives.arakawa(P_ave, Ad, ix, jx) \
-                             + 0.5 * self.ht * self.derivatives.arakawa(Pd, A_ave, ix, jx)
-                 
-                # current density
-                y[iy, jy, 1] = Jd[ix, jx] \
-                             + ( \
-                                   + 1. * Ad[ix-1, jx] \
-                                   - 2. * Ad[ix,   jx] \
-                                   + 1. * Ad[ix+1, jx] \
-                               ) * self.hx_inv**2 \
-                             + ( \
-                                   + 1. * Ad[ix, jx-1] \
-                                   - 2. * Ad[ix, jx  ] \
-                                   + 1. * Ad[ix, jx+1] \
-                               ) * self.hy_inv**2
-                
-#                 y[iy, jy, 1] = Jd[ix, jx] \
-#                              + self.derivatives.laplace(Ad, ix, jx)
-                 
-                # streaming function
-                y[iy, jy, 2] = Od[ix, jx] \
-                             + ( \
-                                   + 1. * Pd[ix-1, jx] \
-                                   - 2. * Pd[ix,   jx] \
-                                   + 1. * Pd[ix+1, jx] \
-                               ) * self.hx_inv**2 \
-                             + ( \
-                                   + 1. * Pd[ix, jx-1] \
-                                   - 2. * Pd[ix, jx  ] \
-                                   + 1. * Pd[ix, jx+1] \
-                               ) * self.hy_inv**2
-                 
-#                 y[iy, jy, 2] = Od[ix, jx] \
-#                              + self.derivatives.laplace(Pd, ix, jx)
-                 
-                # vorticity
-                y[iy, jy, 3] = Od[ix,jx] \
-                             + 0.5 * self.ht * self.derivatives.arakawa(P_ave, Od, ix, jx) \
-                             + 0.5 * self.ht * self.derivatives.arakawa(Pd, O_ave, ix, jx) \
-                             + 0.5 * self.ht * self.derivatives.arakawa(J_ave, Ad, ix, jx) \
-                             + 0.5 * self.ht * self.derivatives.arakawa(Jd, A_ave, ix, jx)
+        self.da1.getVecArray(self.Ad)[:,:] = xd[:,:,0]
+        self.da1.getVecArray(self.Jd)[:,:] = xd[:,:,1]
+        self.da1.getVecArray(self.Pd)[:,:] = xd[:,:,2]
+        self.da1.getVecArray(self.Od)[:,:] = xd[:,:,3]
 
+        
+        y = self.da4.getVecArray(Y)
+         
+        # magnetic potential
+        self.derivatives.arakawa_vec(self.Pa, self.Ad, self.T1)
+        self.derivatives.arakawa_vec(self.Pd, self.Aa, self.T2)
+        
+        y[:,:,0] = self.da1.getVecArray(self.Ad)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:]
+        
+        # current density
+        self.derivatives.laplace_vec(self.Ad, self.YJ, +1.)
+
+        y[:,:,1] = self.da1.getVecArray(self.Jd)[:,:] \
+                 + self.da1.getVecArray(self.YJ)[:,:]
+         
+        # streaming function
+        self.derivatives.laplace_vec(self.Pd, self.YP, +1.)
+
+        y[:,:,2] = self.da1.getVecArray(self.Od)[:,:] \
+                 + self.da1.getVecArray(self.YP)[:,:]
+ 
+        # vorticity
+        self.derivatives.arakawa_vec(self.Pa, self.Od, self.T1)
+        self.derivatives.arakawa_vec(self.Pd, self.Oa, self.T2)
+        self.derivatives.arakawa_vec(self.Ja, self.Ad, self.T3)
+        self.derivatives.arakawa_vec(self.Jd, self.Aa, self.T4)
+        
+        y[:,:,3] = self.da1.getVecArray(self.Od)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T3)[:,:] \
+                 + 0.5*self.ht * self.da1.getVecArray(self.T4)[:,:]
 
    
     def snes_function(self, SNES snes, Vec X, Vec Y):
-        self.function(X, Y)
+        self.update_previous(X)
+        self.function(Y)
         
     
-    def function(self, Vec X, Vec Y):
-        cdef int i, j
-        cdef int ix, iy, jx, jy
-        cdef int xe, xs, ye, ys
-        
-        (xs, xe), (ys, ye) = self.da4.getRanges()
-        
-        self.da4.globalToLocal(X,       self.localXp)
-        self.da4.globalToLocal(self.Xh, self.localXh)
-        
-        cdef np.ndarray[double, ndim=3] y  = self.da4.getVecArray(Y)[...]
-        
-        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
-        
-        cdef np.ndarray[double, ndim=2] Ap = xp[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jp = xp[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Pp = xp[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Op = xp[...][:,:,3]
-        
-        cdef np.ndarray[double, ndim=2] Ah = xh[...][:,:,0]
-        cdef np.ndarray[double, ndim=2] Jh = xh[...][:,:,1]
-        cdef np.ndarray[double, ndim=2] Ph = xh[...][:,:,2]
-        cdef np.ndarray[double, ndim=2] Oh = xh[...][:,:,3]
-        
-        cdef double[:,:] A_ave = 0.5 * (Ap + Ah)
-        cdef double[:,:] J_ave = 0.5 * (Jp + Jh)
-        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
-        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
-        
-        
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-            
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                
-                # magnetic potential
-                y[iy, jy, 0] = Ap[ix,jx] - Ah[ix,jx] \
-                             + self.ht * self.derivatives.arakawa(P_ave, A_ave, ix, jx)
-                
-                # current density
-                y[iy, jy, 1] = Jp[ix, jx] \
-                             + self.derivatives.laplace(Ap, ix, jx)
-                
-                # streaming function
-                y[iy, jy, 2] = Op[ix, jx] \
-                             + self.derivatives.laplace(Pp, ix, jx)
-                
-                # vorticity
-                y[iy, jy, 3] = Op[ix,jx] - Oh[ix,jx] \
-                             + self.ht * self.derivatives.arakawa(P_ave, O_ave, ix, jx) \
-                             + self.ht * self.derivatives.arakawa(J_ave, A_ave, ix, jx)
+    @cython.boundscheck(False)
+    def function(self, Vec Y):
 
+        y = self.da4.getVecArray(Y)
+         
+        # magnetic potential
+        self.derivatives.arakawa_vec(self.Pa, self.Aa, self.T1)
+        
+        y[:,:,0] = self.da1.getVecArray(self.Ap)[:,:] \
+                 - self.da1.getVecArray(self.Ah)[:,:] \
+                 + self.ht * self.da1.getVecArray(self.T1)[:,:]
+        
+        # current density
+        self.derivatives.laplace_vec(self.Ap, self.YJ, +1.)
+
+        y[:,:,1] = self.da1.getVecArray(self.Jp)[:,:] \
+                 + self.da1.getVecArray(self.YJ)[:,:]
+         
+        # streaming function
+        self.derivatives.laplace_vec(self.Pp, self.YP, +1.)
+
+        y[:,:,2] = self.da1.getVecArray(self.Op)[:,:] \
+                 + self.da1.getVecArray(self.YP)[:,:]
+ 
+        # vorticity
+        self.derivatives.arakawa_vec(self.Pa, self.Oa, self.T1)
+        self.derivatives.arakawa_vec(self.Ja, self.Aa, self.T2)
+        
+        y[:,:,3] = self.da1.getVecArray(self.Op)[:,:] \
+                 - self.da1.getVecArray(self.Oh)[:,:] \
+                 + self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                 + self.ht * self.da1.getVecArray(self.T2)[:,:]
+        

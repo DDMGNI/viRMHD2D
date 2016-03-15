@@ -60,6 +60,8 @@ cdef class PETScPreconditioner(object):
         self.T  = self.da1.createGlobalVec()
         self.T1 = self.da1.createGlobalVec()
         self.T2 = self.da1.createGlobalVec()
+        self.T3 = self.da1.createGlobalVec()
+        self.T4 = self.da1.createGlobalVec()
         
         # create data and history vectors
         self.Xd = self.da4.createGlobalVec()
@@ -81,10 +83,20 @@ cdef class PETScPreconditioner(object):
         self.Ph = self.da1.createGlobalVec()
         self.Oh = self.da1.createGlobalVec()
         
+        self.Aa = self.da1.createGlobalVec()
+        self.Ja = self.da1.createGlobalVec()
+        self.Pa = self.da1.createGlobalVec()
+        self.Oa = self.da1.createGlobalVec()
+        
         # create local solver vectors
-        self.localF = self.da4.createLocalVec()
-        self.localB = self.da4.createLocalVec()
-        self.localL = self.da1.createLocalVec()
+        self.localF  = self.da4.createLocalVec()
+        self.localB  = self.da4.createLocalVec()
+        self.localL  = self.da1.createLocalVec()
+
+        self.localFA = self.da1.createLocalVec()
+        self.localFJ = self.da1.createLocalVec()
+        self.localFP = self.da1.createLocalVec()
+        self.localFO = self.da1.createLocalVec()
         
         # create local data and history vectors
         self.localXd = self.da4.createLocalVec()
@@ -96,9 +108,17 @@ cdef class PETScPreconditioner(object):
         self.localPd = self.da1.createLocalVec()
         self.localOd = self.da1.createLocalVec()
         
+        self.localAa = self.da1.createLocalVec()
+        self.localJa = self.da1.createLocalVec()
+        self.localPa = self.da1.createLocalVec()
+        self.localOa = self.da1.createLocalVec()
+        
         self.localQd = self.da1.createLocalVec()
+        self.localT  = self.da1.createLocalVec()
         self.localT1 = self.da1.createLocalVec()
         self.localT2 = self.da1.createLocalVec()
+        self.localT3 = self.da1.createLocalVec()
+        self.localT4 = self.da1.createLocalVec()
         
         # create derivatives object
         self.derivatives = PETScDerivatives(da1, nx, ny, ht, hx, hy)
@@ -124,8 +144,8 @@ cdef class PETScPreconditioner(object):
         self.poisson_ksp.setTolerances(rtol=1E-10, atol=1E-12)
         self.poisson_ksp.setOperators(self.Pm)
 #         self.poisson_ksp.setNullSpace(PETSc.NullSpace().create(constant=True))
-#         self.poisson_ksp.setType('cg')
-        self.poisson_ksp.setType('richardson')
+        self.poisson_ksp.setType('cg')
+#         self.poisson_ksp.setType('richardson')
 #         self.poisson_ksp.setType('bcgs')
 #         self.poisson_ksp.setType('gmres')
 #         self.poisson_ksp.setType('fgmres')
@@ -161,345 +181,113 @@ cdef class PETScPreconditioner(object):
         X.copy(self.Xh)
         
         x = self.da4.getVecArray(self.Xh)
-        a = self.da1.getVecArray(self.Ah)
-        j = self.da1.getVecArray(self.Jh)
-        p = self.da1.getVecArray(self.Ph)
-        o = self.da1.getVecArray(self.Oh)
         
-        a[:,:] = x[:,:,0]
-        j[:,:] = x[:,:,1]
-        p[:,:] = x[:,:,2]
-        o[:,:] = x[:,:,3]
+        self.da1.getVecArray(self.Ah)[:,:] = x[:,:,0]
+        self.da1.getVecArray(self.Jh)[:,:] = x[:,:,1]
+        self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
+        self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
         
     
     def update_previous(self, Vec X):
         X.copy(self.Xp)
         
         x = self.da4.getVecArray(self.Xp)
-        a = self.da1.getVecArray(self.Ap)
-        j = self.da1.getVecArray(self.Jp)
-        p = self.da1.getVecArray(self.Pp)
-        o = self.da1.getVecArray(self.Op)
         
-        a[:,:] = x[:,:,0]
-        j[:,:] = x[:,:,1]
-        p[:,:] = x[:,:,2]
-        o[:,:] = x[:,:,3]
+        self.da1.getVecArray(self.Ap)[:,:] = x[:,:,0]
+        self.da1.getVecArray(self.Jp)[:,:] = x[:,:,1]
+        self.da1.getVecArray(self.Pp)[:,:] = x[:,:,2]
+        self.da1.getVecArray(self.Op)[:,:] = x[:,:,3]
+        
+        self.da1.getVecArray(self.Aa)[:,:] = 0.5 * (self.da1.getVecArray(self.Ap)[:,:] + self.da1.getVecArray(self.Ah)[:,:])
+        self.da1.getVecArray(self.Ja)[:,:] = 0.5 * (self.da1.getVecArray(self.Jp)[:,:] + self.da1.getVecArray(self.Jh)[:,:])
+        self.da1.getVecArray(self.Pa)[:,:] = 0.5 * (self.da1.getVecArray(self.Pp)[:,:] + self.da1.getVecArray(self.Ph)[:,:])
+        self.da1.getVecArray(self.Oa)[:,:] = 0.5 * (self.da1.getVecArray(self.Op)[:,:] + self.da1.getVecArray(self.Oh)[:,:])
+        
+#         self.da1.globalToLocal(self.Aa, self.localAa)
+#         self.da1.globalToLocal(self.Ja, self.localJa)
+#         self.da1.globalToLocal(self.Pa, self.localPa)
+#         self.da1.globalToLocal(self.Oa, self.localOa)
         
     
     def update_function(self, Vec F):
         F.copy(self.F)
         
-        cdef np.ndarray[double, ndim=3] f   = self.da4.getVecArray(self.F )[...]
-        cdef np.ndarray[double, ndim=2] tfa = self.da1.getVecArray(self.FA)[...]
-        cdef np.ndarray[double, ndim=2] tfj = self.da1.getVecArray(self.FJ)[...]
-        cdef np.ndarray[double, ndim=2] tfp = self.da1.getVecArray(self.FP)[...]
-        cdef np.ndarray[double, ndim=2] tfo = self.da1.getVecArray(self.FO)[...]
+        f = self.da4.getVecArray(self.F)
         
-        tfa[:,:] = f[:,:,0]
-        tfj[:,:] = f[:,:,1]
-        tfp[:,:] = f[:,:,2]
-        tfo[:,:] = f[:,:,3]
+        self.da1.getVecArray(self.FA)[:,:] = f[:,:,0]
+        self.da1.getVecArray(self.FJ)[:,:] = f[:,:,1]
+        self.da1.getVecArray(self.FP)[:,:] = f[:,:,2]
+        self.da1.getVecArray(self.FO)[:,:] = f[:,:,3]
+        
+#         self.da1.globalToLocal(self.FA, self.localFA)
+#         self.da1.globalToLocal(self.FJ, self.localFJ)
+#         self.da1.globalToLocal(self.FP, self.localFP)
+#         self.da1.globalToLocal(self.FO, self.localFO)
         
     
-#     def compute_phi(self):
-#         
-#         self.L.copy(self.Pd)
-#         
-#         self.derivatives.arakawa_vec(self.Pp, self.Pd, self.T1)
-#         self.derivatives.arakawa_vec(self.Ph, self.Pd, self.T2)
-#         self.Pd.axpy(0.25*self.ht, self.T1)
-#         self.Pd.axpy(0.25*self.ht, self.T2)
-#         
-#         self.derivatives.arakawa_vec(self.Ap, self.Ad, self.T1)
-#         self.derivatives.arakawa_vec(self.Ah, self.Ad, self.T2)
-#         self.Pd.axpy(0.25*self.ht, self.T1)
-#         self.Pd.axpy(0.25*self.ht, self.T2)
-#     
-#     
-#     def compute_psi(self):
-#         
-#         self.Qb.set(0.)
-#         self.Qb.axpy(1., self.FA)
-#         
-#         self.derivatives.arakawa_vec(self.Ap, self.L, self.T1)
-#         self.derivatives.arakawa_vec(self.Ah, self.L, self.T2)
-#         self.Qb.axpy(0.25*self.ht, self.T1)
-#         self.Qb.axpy(0.25*self.ht, self.T2)
-#         
-#         self.derivatives.arakawa_vec(self.Pp, self.Pd, self.T1)
-#         self.derivatives.arakawa_vec(self.Ph, self.Pd, self.T2)
-#         self.T.set(0.)
-#         self.T.axpy(0.25*self.ht, self.T1)
-#         self.T.axpy(0.25*self.ht, self.T2)
-#         
-#         self.derivatives.arakawa_vec(self.Ap, self.T, self.T1)
-#         self.derivatives.arakawa_vec(self.Ah, self.T, self.T2)
-#         self.Qb.axpy(0.25*self.ht, self.T1)
-#         self.Qb.axpy(0.25*self.ht, self.T2)
-#         
-# #         print("    PC parabolic solve")
-# #         self.Ad.set(0.)
-#         self.parabol_ksp.solve(self.Qb, self.Ad)
-    
-    
+    @cython.boundscheck(False)
     def solve(self, Vec X, Vec Y):
-        cdef int i, j, k
-        cdef int ix, iy, jx, jy
-        cdef int xe, xs, ye, ys
-        
-        (xs, xe), (ys, ye) = self.da1.getRanges()        
         
         self.update_function(X)
 
-        self.da4.globalToLocal(self.F,  self.localF)
-        self.da4.globalToLocal(self.Xp, self.localXp)
-        self.da4.globalToLocal(self.Xh, self.localXh)
         
-        cdef np.ndarray[double, ndim=3] f  = self.da4.getVecArray(self.localF )[...]
-        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
+        self.derivatives.arakawa_vec(self.Pa, self.FP, self.T1)
+        self.derivatives.arakawa_vec(self.Aa, self.FJ, self.T2)
         
-        cdef double[:,:] fa = f[:,:,0]
-        cdef double[:,:] fj = f[:,:,1]
-        cdef double[:,:] fp = f[:,:,2]
-        cdef double[:,:] fo = f[:,:,3]
+        self.da1.getVecArray(self.Pb)[:,:] = self.da1.getVecArray(self.FO)[:,:] \
+                                           - self.da1.getVecArray(self.FP)[:,:] \
+                                           + 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                                           - 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:]
         
-        cdef double[:,:] A_ave = 0.5 * (xp[...][:,:,0] + xh[...][:,:,0])
-        cdef double[:,:] J_ave = 0.5 * (xp[...][:,:,1] + xh[...][:,:,1])
-        cdef double[:,:] P_ave = 0.5 * (xp[...][:,:,2] + xh[...][:,:,2])
-        cdef double[:,:] O_ave = 0.5 * (xp[...][:,:,3] + xh[...][:,:,3])
-        
-        self.Ad.set(0.)
-        self.Jd.set(0.)
-        self.Pd.set(0.)
-        self.Od.set(0.)
-        
-        cdef double[:,:] l
-        cdef double[:,:] t
-        cdef double[:,:] pb
-        cdef double[:,:] qb
-        cdef double[:,:] td
-        cdef double[:,:] ad
-        cdef double[:,:] pd
-        
-        pb = self.da1.getVecArray(self.Pb)[...]
-
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-             
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                 
-                pb[iy, jy] = fo[ix,jx] - fp[ix,jx] \
-                           + 0.5 * self.ht * self.derivatives.arakawa(P_ave, fp, ix, jx) \
-                           - 0.5 * self.ht * self.derivatives.arakawa(A_ave, fj, ix, jx)
-        
+#         self.L.set(0.)
         self.poisson_nullspace.remove(self.Pb)
-        
-        self.L.set(0.)
         self.poisson_ksp.solve(self.Pb, self.L)
         
         
+        self.Ad.set(0.)
+        self.Pd.set(0.)
+        
         for k in range(4):
             
-#             pb = self.da1.getVecArray(self.Pb)[...]
-# 
-#             self.da1.globalToLocal(self.Jd, self.localJd)
-#             jd = self.da1.getVecArray(self.localJd)[...]
-#             
-#             self.da1.globalToLocal(self.Od, self.localOd)
-#             od = self.da1.getVecArray(self.localOd)[...]
-#             
-#             for i in range(xs, xe):
-#                 ix = i-xs+2
-#                 iy = i-xs
-#                  
-#                 for j in range(ys, ye):
-#                     jx = j-ys+2
-#                     jy = j-ys
-#                      
-#                     pb[iy, jy] = fo[ix,jx] - fp[ix,jx] \
-#                                + 0.5 * self.ht * self.derivatives.arakawa(P_ave, fp, ix, jx) \
-#                                - 0.5 * self.ht * self.derivatives.arakawa(A_ave, fj, ix, jx) \
-# #                                + 0.5 * self.ht * self.derivatives.arakawa(P_ave, od, ix, jx) \
-# #                                - 0.5 * self.ht * self.derivatives.arakawa(A_ave, jd, ix, jx)
-#             
-#             self.L.set(0.)
-#             self.poisson_ksp.solve(self.Pb, self.L)
+            self.derivatives.arakawa_vec(self.Pa, self.Pd, self.T)
+            self.derivatives.arakawa_vec(self.Aa, self.L,  self.T1)
+            self.derivatives.arakawa_vec(self.Aa, self.T,  self.T2)
+            self.derivatives.arakawa_vec(self.Pa, self.Ad, self.T3)
+            self.derivatives.arakawa_vec(self.Aa, self.Ad, self.T4)
             
-            
-            self.da1.globalToLocal(self.L,  self.localL)
-            l = self.da1.getVecArray(self.localL)[...]
-            
-            
-            
-            self.Pd.copy(self.T2)
-            self.da1.globalToLocal(self.T2, self.localT2)
-            td = self.da1.getVecArray(self.localT2)[...]
-            
-            t = self.da1.getVecArray(self.T1)[...]
-            
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
-                 
-                for j in range(ys, ye):
-                    jx = j-ys+2
-                    jy = j-ys
-                     
-                    t[iy, jy] = 0.5 * self.ht * self.derivatives.arakawa(P_ave, td, ix, jx)
-            
-            self.da1.globalToLocal(self.T1, self.localT1)
-            t = self.da1.getVecArray(self.localT1)[...]
-    
-            qb = self.da1.getVecArray(self.Qb)[...]
-            
-            self.da1.globalToLocal(self.Ad, self.localAd)
-            ad = self.da1.getVecArray(self.localAd)[...]
-            
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
-                 
-                for j in range(ys, ye):
-                    jx = j-ys+2
-                    jy = j-ys
-                     
-                    qb[iy,jy] = fa[ix,jx] \
-                              + 0.5 * self.ht * self.derivatives.arakawa(A_ave, l,  ix, jx) \
-                              + 0.5 * self.ht * self.derivatives.arakawa(A_ave, t,  ix, jx) \
-                              - 0.5 * self.ht * self.derivatives.arakawa(P_ave, ad, ix, jx)
-            
+            self.da1.getVecArray(self.Qb)[:,:] = self.da1.getVecArray(self.FA)[:,:] \
+                                               + 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                                               + 0.5*self.ht * 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:] \
+                                               - 0.5*self.ht * self.da1.getVecArray(self.T3)[:,:]
+
             self.parabol_ksp.solve(self.Qb, self.Ad)
             
             
-            self.da1.globalToLocal(self.Ad, self.localAd)
-            ad = self.da1.getVecArray(self.localAd)[...]
-            
-            pd = self.da1.getVecArray(self.Pd)[...]
-            
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
-                 
-                for j in range(ys, ye):
-                    jx = j-ys+2
-                    jy = j-ys
-                     
-                    pd[iy,jy] = l[ix,jx] \
-                              - 0.5 * self.ht * self.derivatives.arakawa(P_ave, td, ix, jx) \
-                              + 0.5 * self.ht * self.derivatives.arakawa(A_ave, ad, ix, jx)
+            self.da1.getVecArray(self.Pd)[:,:] = self.da1.getVecArray(self.L)[:,:] \
+                                               - 0.5*self.ht * self.da1.getVecArray(self.T )[:,:] \
+                                               + 0.5*self.ht * self.da1.getVecArray(self.T4)[:,:]
         
         
-            self.da1.globalToLocal(self.Pd, self.localPd)
-            pd = self.da1.getVecArray(self.localPd)[...]
-            
-            od = self.da1.getVecArray(self.Od)[...]
-            jd = self.da1.getVecArray(self.Jd)[...]
-            
-            for i in range(xs, xe):
-                ix = i-xs+2
-                iy = i-xs
-                 
-                for j in range(ys, ye):
-                    jx = j-ys+2
-                    jy = j-ys
-                    
-                    od[iy,jy] = fp[ix,jx] - self.derivatives.laplace(pd, ix, jx)
-                    jd[iy,jy] = fj[ix,jx] - self.derivatives.laplace(ad, ix, jx)
-                
+        self.derivatives.laplace_vec(self.Pd, self.Od, -1.)
+        self.derivatives.laplace_vec(self.Ad, self.Jd, -1.)
         
-#         self.derivatives.laplace_vec(self.Pd, self.Od, -1.)
-#         self.derivatives.laplace_vec(self.Ad, self.Jd, -1.)
-#         
-#         self.Od.axpy(1., self.FP)
-#         self.Jd.axpy(1., self.FJ)
+        self.Od.axpy(1., self.FP)
+        self.Jd.axpy(1., self.FJ)
         
-#         cdef double[:,:,:] tx = self.da4.getVecArray(Y)[...]
-        cdef np.ndarray[double, ndim=3] tx = self.da4.getVecArray(Y)[...]
-        ad = self.da1.getVecArray(self.Ad)[...]
-        pd = self.da1.getVecArray(self.Pd)[...]
+        y = self.da4.getVecArray(Y)
         
-        tx[:,:,0] = ad[:,:]
-        tx[:,:,1] = jd[:,:]
-        tx[:,:,2] = pd[:,:]
-        tx[:,:,3] = od[:,:]
+        y[:,:,0] = self.da1.getVecArray(self.Ad)[:,:]
+        y[:,:,1] = self.da1.getVecArray(self.Jd)[:,:]
+        y[:,:,2] = self.da1.getVecArray(self.Pd)[:,:]
+        y[:,:,3] = self.da1.getVecArray(self.Od)[:,:]
     
     
     def mult(self, Mat mat, Vec Q, Vec Y):
         self.matrix_mult(Q, Y)
         
     
-    @cython.boundscheck(False)
-    def matrix_mult(self, Vec Q, Vec Y):
-        cdef int i, j
-        cdef int ix, iy, jx, jy
-        cdef int xe, xs, ye, ys
-        
-        self.da1.globalToLocal(Q,       self.localQd)
-        self.da4.globalToLocal(self.Xp, self.localXp)
-        self.da4.globalToLocal(self.Xh, self.localXh)
-        
-        cdef double[:,:] y  = self.da1.getVecArray(Y)[...]
-        cdef double[:,:] qd = self.da1.getVecArray(self.localQd)[...]
-        
-        cdef np.ndarray[double, ndim=3] xp = self.da4.getVecArray(self.localXp)[...]
-        cdef np.ndarray[double, ndim=3] xh = self.da4.getVecArray(self.localXh)[...]
-          
-        cdef double[:,:] T1 = self.da1.getVecArray(self.T1)[...]
-#         cdef np.ndarray[double, ndim=2] T2 = self.da1.getVecArray(self.T2)[...]
-        
-        cdef double[:,:] A_ave = 0.5 * (xp[...][:,:,0] + xh[...][:,:,0])
-        cdef double[:,:] P_ave = 0.5 * (xp[...][:,:,2] + xh[...][:,:,2])
-        
-        
-        (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-#         Q.copy(Y)
-#         
-#         self.derivatives.arakawa_vec(self.Pp, Q, self.T1)
-#         self.derivatives.arakawa_vec(self.Ph, Q, self.T2)
-#         Y.axpy(0.25*self.ht, self.T1)
-#         Y.axpy(0.25*self.ht, self.T2)
-# 
-#         self.derivatives.arakawa_vec(self.Ap, Q, self.T1)
-#         self.derivatives.arakawa_vec(self.Ah, Q, self.T2)
-#         self.T.set(0.)
-#         self.T.axpy(0.25*self.ht, self.T1)
-#         self.T.axpy(0.25*self.ht, self.T2)
-#         
-#         self.derivatives.arakawa_vec(self.Ap, self.T, self.T1)
-#         self.derivatives.arakawa_vec(self.Ah, self.T, self.T2)
-#         Y.axpy(-0.25*self.ht, self.T1)
-#         Y.axpy(-0.25*self.ht, self.T2)
-        
-        
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-             
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                 
-                T1[iy, jy] = 0.5 * self.ht * self.derivatives.arakawa(A_ave, qd, ix, jx)
-        
-        
-        self.da1.globalToLocal(self.T1, self.localT1)
-        T1 = self.da1.getVecArray(self.localT1)[...]
-        
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-             
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                 
-                y[iy, jy] = qd[ix,jx] \
-                          - 0.5 * self.ht * self.derivatives.arakawa(A_ave, T1, ix, jx)
-#                           + 0.5 * self.ht * self.derivatives.arakawa(P_ave, qd, ix, jx) \
-
+    cpdef matrix_mult(self, Vec Q, Vec Y):
+        self.derivatives.arakawa_vec(self.Aa, Q, self.T1)
+        self.derivatives.arakawa_vec(self.Aa, self.T1, self.T2)
+        Y.waxpy(-0.5*self.ht*0.5*self.ht, self.T2, Q)
+#         self.da1.getVecArray(Y)[:,:] = self.da1.getVecArray(Q)[:,:] - 0.5*self.ht*0.5*self.ht * self.da1.getVecArray(self.T2)[:,:]   

@@ -440,7 +440,10 @@ class petscMHD2D(object):
             # solve
             i = 0
             
-            self.petsc_solver.function(self.x, self.f)
+            self.petsc_solver.update_previous(self.x)
+            self.petsc_precon.update_previous(self.x)
+            
+            self.petsc_solver.function(self.f)
             pred_norm = self.f.norm()
             
             while True:
@@ -448,9 +451,6 @@ class petscMHD2D(object):
                     print("  Residual at iteration %i:                          residual = %24.16E" % (i, pred_norm))
             
                 i+=1
-                
-                self.petsc_solver.update_previous(self.x)
-                self.petsc_precon.update_previous(self.x)
                 
                 self.f.copy(self.b)
                 self.b.scale(-1.)
@@ -474,8 +474,11 @@ class petscMHD2D(object):
                 
                 self.x.axpy(1., self.dx)
                 
+                self.petsc_solver.update_previous(self.x)
+                self.petsc_precon.update_previous(self.x)
+                
                 prev_norm = pred_norm
-                self.petsc_solver.function(self.x, self.f)
+                self.petsc_solver.function(self.f)
                 pred_norm = self.f.norm()
 
 #                 if PETSc.COMM_WORLD.getRank() == 0:

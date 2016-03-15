@@ -43,6 +43,11 @@ cdef class PETScSolver(object):
     cdef Vec Ph
     cdef Vec Oh
     
+    cdef Vec Aa
+    cdef Vec Ja
+    cdef Vec Pa
+    cdef Vec Oa
+    
     cdef Vec YA
     cdef Vec YJ
     cdef Vec YP
@@ -56,9 +61,26 @@ cdef class PETScSolver(object):
     cdef Vec T
     cdef Vec T1
     cdef Vec T2
+    cdef Vec T3
+    cdef Vec T4
     
     cdef Vec localXd
     cdef Vec localXp
     cdef Vec localXh
+    
+    cdef Vec localAp
+    cdef Vec localJp
+    cdef Vec localPp
+    cdef Vec localOp
+    
+    cdef Vec localAh
+    cdef Vec localJh
+    cdef Vec localPh
+    cdef Vec localOh
+    
+    cdef Vec localAa
+    cdef Vec localJa
+    cdef Vec localPa
+    cdef Vec localOa
     
     cdef PETScDerivatives derivatives
