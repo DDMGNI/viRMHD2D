@@ -37,6 +37,8 @@ cdef class PETScDerivatives(object):
         self.hx_inv = 1. / hx
         self.hy_inv = 1. / hy
         
+        self.arakawa_fac = self.hx_inv * self.hy_inv / 12.
+        
         
         # distributed arrays
         self.da1 = da1
@@ -51,7 +53,7 @@ cdef class PETScDerivatives(object):
     @cython.boundscheck(False)
     cdef double arakawa(self, double[:,:] x, double[:,:] h, int i, int j):
         '''
-        MHD Derivative: Arakawa Bracket
+        Arakawa Bracket
         '''
         
         cdef double jpp, jpc, jcp, result
@@ -69,7 +71,7 @@ cdef class PETScDerivatives(object):
             - x[i-1, j+1] * (h[i,   j+1] - h[i-1, j  ]) \
             + x[i+1, j-1] * (h[i+1, j  ] - h[i,   j-1])
         
-        result = (jpp + jpc + jcp) * self.hx_inv * self.hy_inv / 12.
+        result = (jpp + jpc + jcp) * self.arakawa_fac
         
         return result
     
@@ -77,18 +79,16 @@ cdef class PETScDerivatives(object):
     @cython.boundscheck(False)
     cpdef arakawa_vec(self, Vec X, Vec Y, Vec A):
         '''
-        MHD Derivative: Arakawa Bracket
+        Arakawa Bracket
         '''
         
         cdef int i, j, stencil
         cdef int ix, iy, jx, jy
         cdef int xs, xe, ys, ye
-        cdef double jpp, jpc, jcp, fac
+        cdef double jpp, jpc, jcp
 
         (xs, xe), (ys, ye) = self.da1.getRanges()
         stencil = self.da1.getStencilWidth()
-        
-        fac = self.hx_inv * self.hy_inv / 12.
         
         self.da1.globalToLocal(X, self.localX)
         self.da1.globalToLocal(Y, self.localY)
@@ -119,12 +119,15 @@ cdef class PETScDerivatives(object):
                     - x[ix-1, jx+1] * (y[ix,   jx+1] - y[ix-1, jx  ]) \
                     + x[ix+1, jx-1] * (y[ix+1, jx  ] - y[ix,   jx-1])
                 
-                a[iy, jy] = fac * (jpp + jpc + jcp)
+                a[iy, jy] = self.arakawa_fac * (jpp + jpc + jcp)
         
         
     
     @cython.boundscheck(False)
     cdef double laplace(self, double[:,:] x, int i, int j):
+        """
+        Laplacian
+        """
         
         cdef double result
         
@@ -144,6 +147,9 @@ cdef class PETScDerivatives(object):
 
     @cython.boundscheck(False)
     cpdef laplace_vec(self, Vec X, Vec Y, double sign):
+        """
+        Laplacian
+        """
     
         cdef int i, j, stencil
         cdef int ix, iy, jx, jy
@@ -154,11 +160,8 @@ cdef class PETScDerivatives(object):
         
         self.da1.globalToLocal(X, self.localX)
         
-        x = self.da1.getVecArray(self.localX)
-        y = self.da1.getVecArray(Y)
-        
-        cdef double[:,:] tx = x[...]
-        cdef double[:,:] ty = y[...]
+        cdef double[:,:] x = self.da1.getVecArray(self.localX)[...]
+        cdef double[:,:] y = self.da1.getVecArray(Y)[...]
         
         for i in range(xs, xe):
             ix = i-xs+stencil
@@ -168,7 +171,16 @@ cdef class PETScDerivatives(object):
                 jx = j-ys+stencil
                 jy = j-ys
                 
-                ty[iy, jy] = sign * self.laplace(tx, ix, jx)
+                y[iy, jy] = sign * ( \
+                                     + 1. * x[ix-1, jx] \
+                                     - 2. * x[ix,   jx] \
+                                     + 1. * x[ix+1, jx] \
+                                   ) * self.hx_inv**2 \
+                          + sign * ( \
+                                     + 1. * x[ix, jx-1] \
+                                     - 2. * x[ix, jx  ] \
+                                     + 1. * x[ix, jx+1] \
+                                   ) * self.hy_inv**2
     
     
     
@@ -176,62 +188,48 @@ cdef class PETScDerivatives(object):
     cpdef double dx(self, Vec X, Vec Y, double sign):
     
         cdef int ix, iy, jx, jy, i, j
-        cdef int xs, xe, ys, ye
+        cdef int xs, xe, ys, ye, stencil
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
         self.da1.globalToLocal(X, self.localX)
+        stencil = self.da1.getStencilWidth()
         
-        x = self.da1.getVecArray(self.localX)
-        y = self.da1.getVecArray(Y)
-        
-        cdef double[:,:] tx = x[...]
-        cdef double[:,:] ty = y[...]
+        cdef double[:,:] x = self.da1.getVecArray(self.localX)[...]
+        cdef double[:,:] y = self.da1.getVecArray(Y)[...]
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             iy = i-xs
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 jy = j-ys
                 
-                ty[iy, jy] = sign * (tx[ix+1, jx] - tx[ix-1, jx]) * 0.5 * self.hx_inv
+                y[iy, jy] = sign * (x[ix+1, jx] - x[ix-1, jx]) * 0.5 * self.hx_inv
     
     
     @cython.boundscheck(False)
     cpdef double dy(self, Vec X, Vec Y, double sign):
     
         cdef int ix, iy, jx, jy, i, j
-        cdef int xs, xe, ys, ye
+        cdef int xs, xe, ys, ye, stencil
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
         self.da1.globalToLocal(X, self.localX)
+        stencil = self.da1.getStencilWidth()
         
-        x = self.da1.getVecArray(self.localX)
-        y = self.da1.getVecArray(Y)
-        
-        cdef double[:,:] tx = x[...]
-        cdef double[:,:] ty = y[...]
+        cdef double[:,:] x = self.da1.getVecArray(self.localX)[...]
+        cdef double[:,:] y = self.da1.getVecArray(Y)[...]
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             iy = i-xs
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 jy = j-ys
                 
-                ty[iy, jy] = sign * (tx[ix, jx+1] - tx[ix, jx-1]) * 0.5 * self.hy_inv
-    
-    
-    @cython.boundscheck(False)
-    cdef double dt(self, double[:,:] x, int i, int j):
-        '''
-        Time Derivative
-        '''
-        
-        return x[i, j] * self.ht_inv
-    
+                y[iy, jy] = sign * (x[ix, jx+1] - x[ix, jx-1]) * 0.5 * self.hy_inv
     
