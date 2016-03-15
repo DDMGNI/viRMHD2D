@@ -13,16 +13,16 @@ from PETScDerivatives cimport PETScDerivatives
 
 cdef class PETScSolver(object):
 
-    cdef np.uint64_t  nx
-    cdef np.uint64_t  ny
+    cdef int  nx
+    cdef int  ny
     
-    cdef np.float64_t ht
-    cdef np.float64_t hx
-    cdef np.float64_t hy
+    cdef double ht
+    cdef double hx
+    cdef double hy
     
-    cdef np.float64_t ht_inv
-    cdef np.float64_t hx_inv
-    cdef np.float64_t hy_inv
+    cdef double ht_inv
+    cdef double hx_inv
+    cdef double hy_inv
     
     cdef object da1
     cdef object da4
