@@ -11,8 +11,8 @@ from petsc4py import PETSc
 
 import numpy as np
 
-import argparse
-import time
+import argparse, time
+import pstats, cProfile
 
 from config import Config
 
@@ -87,24 +87,50 @@ class petscMHD2D(object):
         OptDB = PETSc.Options()
         
 #         OptDB.setValue('snes_ls', 'basic')
-        OptDB.setValue('snes_ls', 'quadratic')
-
-        OptDB.setValue('pc_asm_type',  'restrict')
-        OptDB.setValue('pc_asm_overlap', 3)
-        OptDB.setValue('sub_ksp_type', 'preonly')
-        OptDB.setValue('sub_pc_type', 'lu')
-        OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
+#         OptDB.setValue('snes_ls', 'quadratic')
+# 
+#         OptDB.setValue('pc_asm_type',  'restrict')
+#         OptDB.setValue('pc_asm_overlap', 3)
+#         OptDB.setValue('sub_ksp_type', 'preonly')
+#         OptDB.setValue('sub_pc_type', 'lu')
+#         OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
         
-        OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
-        OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])
-        OptDB.setValue('snes_stol',   self.cfg['solver']['petsc_snes_stol'])
-        OptDB.setValue('snes_max_it', self.cfg['solver']['petsc_snes_max_iter'])
+#         OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
+#         OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])
+#         OptDB.setValue('snes_stol',   self.cfg['solver']['petsc_snes_stol'])
+#         OptDB.setValue('snes_max_it', self.cfg['solver']['petsc_snes_max_iter'])
         
         OptDB.setValue('ksp_rtol',   self.cfg['solver']['petsc_ksp_rtol'])
         OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
-        OptDB.setValue('ksp_initial_guess_nonzero', 1)
+#         OptDB.setValue('ksp_initial_guess_nonzero', 1)
         
+#         OptDB.setValue('ksp_type', 'fgmres')
+#         OptDB.setValue('pc_type', 'gamg')
+#         OptDB.setValue('pc_type', 'ml')
+        OptDB.setValue('pc_type', 'hypre')
+        OptDB.setValue('pc_hypre_type', 'boomeramg')
+#         OptDB.setValue('pc_hypre_boomeramg_tol',  1e-7)
+        OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
+#         OptDB.setValue('pc_hypre_boomeramg_max_levels', 6)
+        
+        
+    
+#         OptDB.setValue('pc_hypre_type', 'parasails')
+#         OptDB.setValue('da_refine', 1)
+#         OptDB.setValue('pc_mg_levels', 3)
+# #         OptDB.setValue('pc_mg_type', 'full')
+#         OptDB.setValue('mg_coarse_ksp_type', 'cg')
+#         OptDB.setValue('mg_coarse_pc_type', 'jacobi')
+#         OptDB.setValue('mg_coarse_ksp_max_it', 10)
+# #         OptDB.setValue('mg_coarse_ksp_type', 'preonly')
+# #         OptDB.setValue('mg_coarse_pc_type', 'lu')
+# #         OptDB.setValue('mg_coarse_pc_factor_shift_type', 'nonzero')
+# #         OptDB.setValue('mg_levels_ksp_type', 'richardson')
+#         OptDB.setValue('mg_levels_ksp_type', 'chebyshev')
+#         OptDB.setValue('mg_levels_pc_type', 'jacobi')
+# #         OptDB.setValue('mg_levels_pc_type', 'sor')
+#         OptDB.setValue('mg_levels_ksp_max_it', 10)
         
 # #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
 # #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
@@ -112,8 +138,8 @@ class petscMHD2D(object):
 #         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
         
         OptDB.setValue('ksp_monitor',  '')
-        OptDB.setValue('snes_monitor', '')
-        
+#         OptDB.setValue('snes_monitor', '')
+#          
 #        OptDB.setValue('log_info',    '')
 #        OptDB.setValue('log_summary', '')
         
@@ -233,8 +259,8 @@ class petscMHD2D(object):
         self.ksp.setType('fgmres')
         self.ksp.getPC().setType('none')
 
-        # place holder for Poisson solver
-        self.poisson_ksp = None
+#         # place holder for Poisson solver
+#         self.poisson_ksp = None
         
         # create derivatives object
         self.derivatives = PETScDerivatives(self.da1, self.nx, self.ny, self.ht, self.hx, self.hy)
@@ -322,40 +348,31 @@ class petscMHD2D(object):
                 O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], Lx, Ly)
         
         
-        # solve for consistent initial A
-        self.A.set(0.)
-        
+        # setup Poisson solver
         self.poisson_ksp = PETSc.KSP().create()
+#         self.poisson_ksp.setDM(self.da1)
         self.poisson_ksp.setFromOptions()
         self.poisson_ksp.setOperators(self.Pm)
-        self.poisson_ksp.setType('preonly')
-        self.poisson_ksp.getPC().setType('lu')
-        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
+#         self.poisson_ksp.setTolerances(rtol=1E-15, atol=1E-16)
+        self.poisson_ksp.setTolerances(rtol=1E-14, atol=1E-12)
+        self.poisson_ksp.setType('cg')
+        self.poisson_ksp.getPC().setType('hypre')
         
+        # solve for consistent initial A
+        self.A.set(0.)
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.J, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.A)
         
-        del self.poisson_ksp
-        
-        
         # solve for consistent initial psi
         self.P.set(0.)
-        
-        self.poisson_ksp = PETSc.KSP().create()
-        self.poisson_ksp.setFromOptions()
-        self.poisson_ksp.setOperators(self.Pm)
-        self.poisson_ksp.setType('preonly')
-        self.poisson_ksp.getPC().setType('lu')
-        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
-        
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.O, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.P)
         
-        del self.poisson_ksp
+        # delete Poisson solver
+        self.poisson_ksp.destroy()
+        self.Pm.destroy()
         
         
         # copy initial data vectors to x
@@ -401,11 +418,9 @@ class petscMHD2D(object):
         
     
     def __del__(self):
-        self.hdf5_viewer.destroy()
-#         self.poisson_ksp.destroy()
         self.ksp.destroy()
-#         self.Jmf.destroy()
-        self.Pm.destroy()
+        self.Jmf.destroy()
+        self.hdf5_viewer.destroy()
     
     
     def run(self):
@@ -434,18 +449,27 @@ class petscMHD2D(object):
             
                 i+=1
                 
-                self.petsc_solver.function(self.x, self.b)
-                self.b.scale(-1.)
-                
                 self.petsc_solver.update_previous(self.x)
                 self.petsc_precon.update_previous(self.x)
                 
-                print(" PC solve")
-                self.petsc_precon.solve(self.b, self.dy)
+                self.f.copy(self.b)
+                self.b.scale(-1.)
                 self.dy.set(0.)
-                print("KSP solve")
+#                 self.b.copy(self.dy)
+
+#                 if PETSc.COMM_WORLD.getRank() == 0:
+#                     print(" PC solve")
+#                 
+#                 self.petsc_precon.solve(self.b, self.dy)
+                
+                if PETSc.COMM_WORLD.getRank() == 0:
+                    print("KSP solve")
+                
                 self.ksp.solve(self.b, self.dy)
-                print(" PC solve")
+                
+                if PETSc.COMM_WORLD.getRank() == 0:
+                    print(" PC solve")
+                    
                 self.petsc_precon.solve(self.dy, self.dx)
                 
                 self.x.axpy(1., self.dx)
@@ -674,13 +698,30 @@ class petscMHD2D(object):
     
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
-    parser.add_argument('runfile', metavar='runconfig', type=str,
-                        help='Run Configuration File')
+
+    OptDB = PETSc.Options()
+ 
+#     parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
+#     parser.add_argument('-prof','--profiler', action='store_true', required=False,
+#                         help='Activate Profiler')
+#     parser.add_argument('-jac','--jacobian', action='store_true', required=False,
+#                         help='Check Jacobian')
+#     parser.add_argument('runfile', metavar='runconfig', type=str,
+#                         help='Run Configuration File')
+#     
+#     args = parser.parse_args()
     
-    args = parser.parse_args()
-    
-    petscvp = petscMHD2D(args.runfile)
-    petscvp.run()
-#     petscvp.check_jacobian()
-    
+    runfile = OptDB.getString('c')
+    petscvp = petscMHD2D(runfile)
+
+#     if args.profiler:
+    if OptDB.getBool('profiler', default=False):
+        cProfile.runctx("petscvp.run()", globals(), locals(), "profile.prof")
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            s = pstats.Stats("profile.prof")
+            s.strip_dirs().sort_stats("cumulative").print_stats()
+    elif OptDB.getBool('jacobian', default=False):
+        petscvp.check_jacobian()
+    else:
+        petscvp.run()

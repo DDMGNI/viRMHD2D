@@ -66,11 +66,24 @@ cdef class PETScPreconditioner(object):
     cdef Vec localXd
     cdef Vec localXp
     cdef Vec localXh
+    
     cdef Vec localF
     cdef Vec localB
+    cdef Vec localL
+    
+    cdef Vec localAd
+    cdef Vec localJd
+    cdef Vec localPd
+    cdef Vec localOd
+    
+    cdef Vec localQd
+    cdef Vec localT1
+    cdef Vec localT2
     
     cdef PETScDerivatives derivatives
     cdef PETScPoisson     petsc_poisson
+    
+    cdef object poisson_nullspace
     
     cdef KSP poisson_ksp
     cdef KSP parabol_ksp

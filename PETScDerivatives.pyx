@@ -1,3 +1,4 @@
+# cython: profile=True
 '''
 Created on May 24, 2012
 
@@ -68,7 +69,7 @@ cdef class PETScDerivatives(object):
             - x[i-1, j+1] * (h[i,   j+1] - h[i-1, j  ]) \
             + x[i+1, j-1] * (h[i+1, j  ] - h[i,   j-1])
         
-        result = (jpp + jpc + jcp) / (12. * self.hx * self.hy)
+        result = (jpp + jpc + jcp) * self.hx_inv * self.hy_inv / 12.
         
         return result
     
@@ -85,8 +86,7 @@ cdef class PETScDerivatives(object):
         cdef double jpp, jpc, jcp, fac
 
         (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-        stencil = 1
+        stencil = self.da1.getStencilWidth()
         
         fac = self.hx_inv * self.hy_inv / 12.
         
@@ -145,10 +145,12 @@ cdef class PETScDerivatives(object):
     @cython.boundscheck(False)
     cpdef laplace_vec(self, Vec X, Vec Y, double sign):
     
-        cdef int ix, iy, jx, jy, i, j
+        cdef int i, j, stencil
+        cdef int ix, iy, jx, jy
         cdef int xs, xe, ys, ye
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
+        stencil = self.da1.getStencilWidth()
         
         self.da1.globalToLocal(X, self.localX)
         
@@ -159,11 +161,11 @@ cdef class PETScDerivatives(object):
         cdef double[:,:] ty = y[...]
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             iy = i-xs
-            
+             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 jy = j-ys
                 
                 ty[iy, jy] = sign * self.laplace(tx, ix, jx)

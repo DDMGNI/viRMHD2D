@@ -11,8 +11,8 @@ from petsc4py import PETSc
 
 import numpy as np
 
-import argparse
-import time
+import argparse, time
+import pstats, cProfile
 
 from config import Config
 
@@ -647,12 +647,22 @@ class petscMHD2D(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
+    parser.add_argument('-prof','--profiler', action='store_true', required=False,
+                        help='Activate Profiler')
+    parser.add_argument('-jac','--jacobian', action='store_true', required=False,
+                        help='Check Jacobian')
     parser.add_argument('runfile', metavar='runconfig', type=str,
                         help='Run Configuration File')
     
     args = parser.parse_args()
     
     petscvp = petscMHD2D(args.runfile)
-    petscvp.run()
-#     petscvp.check_jacobian()
-    
+
+    if args.profiler:
+        cProfile.runctx("petscvp.run()", globals(), locals(), "profile.prof")
+        s = pstats.Stats("profile.prof")
+        s.strip_dirs().sort_stats("cumulative").print_stats()
+    elif args.jacobian:  
+        petscvp.check_jacobian()
+    else:
+        petscvp.run()
