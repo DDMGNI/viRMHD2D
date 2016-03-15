@@ -90,24 +90,10 @@ cdef class PETScSolver(object):
         self.T4 = self.da1.createGlobalVec()
         
         # create local vectors
-        self.localXd = da4.createLocalVec()
-        self.localXp = da4.createLocalVec()
-        self.localXh = da4.createLocalVec()
-        
         self.localAa = self.da1.createLocalVec()
         self.localJa = self.da1.createLocalVec()
         self.localPa = self.da1.createLocalVec()
         self.localOa = self.da1.createLocalVec()
-        
-        self.localAp = self.da1.createLocalVec()
-        self.localJp = self.da1.createLocalVec()
-        self.localPp = self.da1.createLocalVec()
-        self.localOp = self.da1.createLocalVec()
-        
-        self.localAh = self.da1.createLocalVec()
-        self.localJh = self.da1.createLocalVec()
-        self.localPh = self.da1.createLocalVec()
-        self.localOh = self.da1.createLocalVec()
         
         # create derivatives object
         self.derivatives = PETScDerivatives(da1, nx, ny, ht, hx, hy)
@@ -124,11 +110,6 @@ cdef class PETScSolver(object):
         self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
         self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
         
-#         self.da1.globalToLocal(self.Ah, self.localAh)
-#         self.da1.globalToLocal(self.Jh, self.localJh)
-#         self.da1.globalToLocal(self.Ph, self.localPh)
-#         self.da1.globalToLocal(self.Oh, self.localOh)
-        
     
     def update_previous(self, Vec X):
         X.copy(self.Xp)
@@ -144,11 +125,6 @@ cdef class PETScSolver(object):
         self.da1.getVecArray(self.Ja)[:,:] = 0.5 * (self.da1.getVecArray(self.Jp)[:,:] + self.da1.getVecArray(self.Jh)[:,:])
         self.da1.getVecArray(self.Pa)[:,:] = 0.5 * (self.da1.getVecArray(self.Pp)[:,:] + self.da1.getVecArray(self.Ph)[:,:])
         self.da1.getVecArray(self.Oa)[:,:] = 0.5 * (self.da1.getVecArray(self.Op)[:,:] + self.da1.getVecArray(self.Oh)[:,:])
-        
-#         self.da1.globalToLocal(self.Ap, self.localAp)
-#         self.da1.globalToLocal(self.Jp, self.localJp)
-#         self.da1.globalToLocal(self.Pp, self.localPp)
-#         self.da1.globalToLocal(self.Op, self.localOp)
         
         self.da1.globalToLocal(self.Aa, self.localAa)
         self.da1.globalToLocal(self.Ja, self.localJa)

@@ -64,20 +64,6 @@ cdef class PETScSolver(object):
     cdef Vec T3
     cdef Vec T4
     
-    cdef Vec localXd
-    cdef Vec localXp
-    cdef Vec localXh
-    
-    cdef Vec localAp
-    cdef Vec localJp
-    cdef Vec localPp
-    cdef Vec localOp
-    
-    cdef Vec localAh
-    cdef Vec localJh
-    cdef Vec localPh
-    cdef Vec localOh
-    
     cdef Vec localAa
     cdef Vec localJa
     cdef Vec localPa

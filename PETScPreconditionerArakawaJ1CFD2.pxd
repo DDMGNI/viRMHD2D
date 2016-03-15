@@ -70,36 +70,6 @@ cdef class PETScPreconditioner(object):
     cdef Vec Qb
     cdef Mat Qm
     
-    cdef Vec localXd
-    cdef Vec localXp
-    cdef Vec localXh
-    
-    cdef Vec localB
-    cdef Vec localL
-    cdef Vec localF
-
-    cdef Vec localFA
-    cdef Vec localFJ
-    cdef Vec localFP
-    cdef Vec localFO
-    
-    cdef Vec localAd
-    cdef Vec localJd
-    cdef Vec localPd
-    cdef Vec localOd
-    
-    cdef Vec localAa
-    cdef Vec localJa
-    cdef Vec localPa
-    cdef Vec localOa
-    
-    cdef Vec localQd
-    cdef Vec localT
-    cdef Vec localT1
-    cdef Vec localT2
-    cdef Vec localT3
-    cdef Vec localT4
-    
     cdef PETScDerivatives derivatives
     cdef PETScPoisson     petsc_poisson
     
@@ -107,7 +77,4 @@ cdef class PETScPreconditioner(object):
     
     cdef KSP poisson_ksp
     cdef KSP parabol_ksp
-    
-    
-    cpdef matrix_mult(self, Vec Q, Vec Y)
     

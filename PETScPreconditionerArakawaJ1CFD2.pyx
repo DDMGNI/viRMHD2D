@@ -88,38 +88,6 @@ cdef class PETScPreconditioner(object):
         self.Pa = self.da1.createGlobalVec()
         self.Oa = self.da1.createGlobalVec()
         
-        # create local solver vectors
-        self.localF  = self.da4.createLocalVec()
-        self.localB  = self.da4.createLocalVec()
-        self.localL  = self.da1.createLocalVec()
-
-        self.localFA = self.da1.createLocalVec()
-        self.localFJ = self.da1.createLocalVec()
-        self.localFP = self.da1.createLocalVec()
-        self.localFO = self.da1.createLocalVec()
-        
-        # create local data and history vectors
-        self.localXd = self.da4.createLocalVec()
-        self.localXp = self.da4.createLocalVec()
-        self.localXh = self.da4.createLocalVec()
-        
-        self.localAd = self.da1.createLocalVec()
-        self.localJd = self.da1.createLocalVec()
-        self.localPd = self.da1.createLocalVec()
-        self.localOd = self.da1.createLocalVec()
-        
-        self.localAa = self.da1.createLocalVec()
-        self.localJa = self.da1.createLocalVec()
-        self.localPa = self.da1.createLocalVec()
-        self.localOa = self.da1.createLocalVec()
-        
-        self.localQd = self.da1.createLocalVec()
-        self.localT  = self.da1.createLocalVec()
-        self.localT1 = self.da1.createLocalVec()
-        self.localT2 = self.da1.createLocalVec()
-        self.localT3 = self.da1.createLocalVec()
-        self.localT4 = self.da1.createLocalVec()
-        
         # create derivatives object
         self.derivatives = PETScDerivatives(da1, nx, ny, ht, hx, hy)
         
@@ -140,19 +108,9 @@ cdef class PETScPreconditioner(object):
         # create linear Poisson solver
         self.poisson_ksp = PETSc.KSP().create()
         self.poisson_ksp.setFromOptions()
-#         self.poisson_ksp.setTolerances(rtol=1E-10, atol=1E-12)
-        self.poisson_ksp.setTolerances(rtol=1E-10, atol=1E-12)
         self.poisson_ksp.setOperators(self.Pm)
-#         self.poisson_ksp.setNullSpace(PETSc.NullSpace().create(constant=True))
+        self.poisson_ksp.setTolerances(rtol=1E-10, atol=1E-12)
         self.poisson_ksp.setType('cg')
-#         self.poisson_ksp.setType('richardson')
-#         self.poisson_ksp.setType('bcgs')
-#         self.poisson_ksp.setType('gmres')
-#         self.poisson_ksp.setType('fgmres')
-#         self.poisson_ksp.getPC().setType('none')
-#         self.poisson_ksp.getPC().setType('gamg')
-#         self.poisson_ksp.getPC().setType('mg')    
-#         self.poisson_ksp.getPC().setType('ml')
         self.poisson_ksp.getPC().setType('hypre')
 #         self.poisson_ksp.getPC().setType('lu')
 #         self.poisson_ksp.getPC().setFactorSolverPackage('superlu_dist')
@@ -167,14 +125,13 @@ cdef class PETScPreconditioner(object):
         # create linear parabolic solver
         self.parabol_ksp = PETSc.KSP().create()
         self.parabol_ksp.setFromOptions()
+        self.parabol_ksp.setOperators(self.Qm)
 #         self.parabol_ksp.setTolerances(rtol=1E-8, atol=1E-14, max_it=1)
         self.parabol_ksp.setTolerances(rtol=1E-8, atol=1E-14)
 #         self.parabol_ksp.setTolerances(max_it=1)
-        self.parabol_ksp.setOperators(self.Qm)
-        self.parabol_ksp.setType('cg')
 #         self.parabol_ksp.setNormType(self.parabol_ksp.NormType.NORM_NONE)
+        self.parabol_ksp.setType('cg')
         self.parabol_ksp.getPC().setType('none')
-#         self.parabol_ksp.getPC().setType('hypre')
         
     
     def update_history(self, Vec X):
@@ -203,11 +160,6 @@ cdef class PETScPreconditioner(object):
         self.da1.getVecArray(self.Pa)[:,:] = 0.5 * (self.da1.getVecArray(self.Pp)[:,:] + self.da1.getVecArray(self.Ph)[:,:])
         self.da1.getVecArray(self.Oa)[:,:] = 0.5 * (self.da1.getVecArray(self.Op)[:,:] + self.da1.getVecArray(self.Oh)[:,:])
         
-#         self.da1.globalToLocal(self.Aa, self.localAa)
-#         self.da1.globalToLocal(self.Ja, self.localJa)
-#         self.da1.globalToLocal(self.Pa, self.localPa)
-#         self.da1.globalToLocal(self.Oa, self.localOa)
-        
     
     def update_function(self, Vec F):
         F.copy(self.F)
@@ -218,11 +170,6 @@ cdef class PETScPreconditioner(object):
         self.da1.getVecArray(self.FJ)[:,:] = f[:,:,1]
         self.da1.getVecArray(self.FP)[:,:] = f[:,:,2]
         self.da1.getVecArray(self.FO)[:,:] = f[:,:,3]
-        
-#         self.da1.globalToLocal(self.FA, self.localFA)
-#         self.da1.globalToLocal(self.FJ, self.localFJ)
-#         self.da1.globalToLocal(self.FP, self.localFP)
-#         self.da1.globalToLocal(self.FO, self.localFO)
         
     
     @cython.boundscheck(False)
@@ -286,7 +233,7 @@ cdef class PETScPreconditioner(object):
         self.matrix_mult(Q, Y)
         
     
-    cpdef matrix_mult(self, Vec Q, Vec Y):
+    def matrix_mult(self, Vec Q, Vec Y):
         self.derivatives.arakawa_vec(self.Aa, Q, self.T1)
         self.derivatives.arakawa_vec(self.Aa, self.T1, self.T2)
         Y.waxpy(-0.5*self.ht*0.5*self.ht, self.T2, Q)
