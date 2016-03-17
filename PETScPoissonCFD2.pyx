@@ -24,8 +24,8 @@ cdef class PETScPoisson(object):
     '''
     
     def __init__(self, object da1,
-                 np.uint64_t nx, np.uint64_t ny,
-                 np.float64_t hx, np.float64_t hy):
+                 int nx, int ny,
+                 double hx, double hy):
         '''
         Constructor
         '''
@@ -40,23 +40,22 @@ cdef class PETScPoisson(object):
         self.hx = hx
         self.hy = hy
         
+        self.lapx_fac = 1. / self.hx**2
+        self.lapy_fac = 1. / self.hy**2
+        
         
         # create local vectors
-        self.localB  = da1.createLocalVec()
         self.localX  = da1.createLocalVec()
         
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        cdef int i, j, stencil
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-        cdef np.float64_t lapx_fac = 1. / self.hx**2
-        cdef np.float64_t lapy_fac = 1. / self.hy**2
-        
+        stencil = self.da1.getStencilWidth()
         
         A.zeroEntries()
         
@@ -65,19 +64,19 @@ cdef class PETScPoisson(object):
         
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 
                 row.index = (i,j)
                 
                 for index, value in [
-                    ((i,   j-1),                 - 1. * lapy_fac),
-                    ((i-1, j  ), - 1. * lapx_fac                ),
-                    ((i,   j  ), + 2. * lapx_fac + 2. * lapy_fac),
-                    ((i+1, j  ), - 1. * lapx_fac                ),
-                    ((i,   j+1),                 - 1. * lapy_fac),
+                    ((i,   j-1),                      - 1. * self.lapy_fac),
+                    ((i-1, j  ), - 1. * self.lapx_fac                ),
+                    ((i,   j  ), + 2. * self.lapx_fac + 2. * self.lapy_fac),
+                    ((i+1, j  ), - 1. * self.lapx_fac                ),
+                    ((i,   j+1),                      - 1. * self.lapy_fac),
                     ]:
                     
                     col.index = index
@@ -88,26 +87,29 @@ cdef class PETScPoisson(object):
 
     @cython.boundscheck(False)
     def formRHS(self, Vec X, Vec B):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        X.copy(B)
         
-        (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-        self.da1.globalToLocal(X, self.localX)
-        
-        cdef np.ndarray[np.float64_t, ndim=2] b = self.da1.getVecArray(B)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] x = self.da1.getVecArray(self.localX)[...]
-        
-        
-        for i in range(xs, xe):
-            ix = i-xs+2
-            iy = i-xs
-            
-            for j in range(ys, ye):
-                jx = j-ys+2
-                jy = j-ys
-                
-                b[iy,jy] = x[ix,jx]
+#         cdef int i, j, stencil
+#         cdef int ix, iy, jx, jy
+#         cdef int xe, xs, ye, ys
+#         
+#         (xs, xe), (ys, ye) = self.da1.getRanges()
+#         stencil = self.da1.getStencilWidth()
+#         
+#         self.da1.globalToLocal(X, self.localX)
+#         
+#         cdef double[:,:] b = self.da1.getVecArray(B)[...]
+#         cdef double[:,:] x = self.da1.getVecArray(self.localX)[...]
+#         
+#         
+#         for i in range(xs, xe):
+#             ix = i-xs+stencil
+#             iy = i-xs
+#             
+#             for j in range(ys, ye):
+#                 jx = j-ys+stencil
+#                 jy = j-ys
+#                 
+#                 b[iy,jy] = x[ix,jx]
                 
     

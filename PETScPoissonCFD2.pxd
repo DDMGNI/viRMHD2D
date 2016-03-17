@@ -11,13 +11,15 @@ from petsc4py.PETSc cimport Vec
 
 cdef class PETScPoisson(object):
 
-    cdef np.uint64_t  nx
-    cdef np.uint64_t  ny
+    cdef int  nx
+    cdef int  ny
     
-    cdef np.float64_t hx
-    cdef np.float64_t hy
+    cdef double hx
+    cdef double hy
+    
+    cdef double lapx_fac
+    cdef double lapy_fac
     
     cdef object da1
     
-    cdef Vec localB
     cdef Vec localX
