@@ -59,20 +59,19 @@ cdef class PETScPreconditioner(object):
     cdef Vec FP
     cdef Vec FO
     
+    cdef Vec T1
+    cdef Vec T2
+    cdef Vec T3
+    cdef Vec T4
+    
     cdef Vec Pb
     cdef Mat Pm
     cdef Vec Qb
     cdef Mat Qm
 
-    cdef Vec localL
     cdef Vec localQ
     cdef Vec localT
 
-    cdef Vec localFA
-    cdef Vec localFJ
-    cdef Vec localFP
-    cdef Vec localFO
-    
     cdef Vec localAa
     cdef Vec localPa
     

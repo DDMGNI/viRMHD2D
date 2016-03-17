@@ -110,6 +110,10 @@ cdef class PETScSolver(object):
         self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
         self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
         
+        if self.pc is not None:
+            self.pc.update_history(self.Ah, self.Jh, self.Ph, self.Oh)
+        
+        
     
     def update_previous(self, Vec X):
         X.copy(self.Xp)
@@ -131,6 +135,9 @@ cdef class PETScSolver(object):
         self.da1.globalToLocal(self.Pa, self.localPa)
         self.da1.globalToLocal(self.Oa, self.localOa)
         
+        if self.pc is not None:
+            self.pc.update_previous(self.Ap, self.Jp, self.Pp, self.Op)
+        
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
@@ -139,7 +146,7 @@ cdef class PETScSolver(object):
         cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da4.getRanges()
-        stencil = self.da1.getStencilWidth()
+        stencil = self.da4.getStencilWidth()
         
         cdef double[:,:] A_ave = self.da1.getVecArray(self.localAa)[...]
         cdef double[:,:] J_ave = self.da1.getVecArray(self.localJa)[...]
@@ -214,10 +221,10 @@ cdef class PETScSolver(object):
                 
                 
                 # current density
-                # - Delta A - J = - R_A
+                # Delta A + J = - R_A
                 row.field = 1
                 
-                # - Delta A 
+                # Delta A 
                 col.field = 0
                 for index, value in [
                     ((i,   j-1),                 - 1. * lapy_fac),
@@ -230,7 +237,7 @@ cdef class PETScSolver(object):
                     col.index = index
                     A.setValueStencil(row, col, - value)
             
-                # - J
+                # J
                 col.field = 1
                 col.index = (i,j)
                 A.setValueStencil(row, col, 1.)
@@ -238,10 +245,10 @@ cdef class PETScSolver(object):
                 
                 
                 # streaming function
-                # - Delta P - O = - R_P
+                # Delta P + O = - R_P
                 row.field = 2
                 
-                # - Delta P
+                # Delta P
                 col.field = 2
                 for index, value in [
                     ((i,   j-1),                 - 1. * lapy_fac),
@@ -254,7 +261,7 @@ cdef class PETScSolver(object):
                     col.index = index
                     A.setValueStencil(row, col, - value)
             
-                # - O
+                # O
                 col.field = 3
                 col.index = (i,j)
                 A.setValueStencil(row, col, 1.)
@@ -358,10 +365,11 @@ cdef class PETScSolver(object):
     def mult(self, Mat mat, Vec X, Vec Y):
         
         if self.pc == None:
-            xd = self.da4.getVecArray(X)
+            X.copy(self.Yd)
         else:
             self.pc.solve(X, self.Yd)
-            xd = self.da4.getVecArray(self.Yd)
+        
+        xd = self.da4.getVecArray(self.Yd)
         
         self.da1.getVecArray(self.Ad)[:,:] = xd[:,:,0]
         self.da1.getVecArray(self.Jd)[:,:] = xd[:,:,1]

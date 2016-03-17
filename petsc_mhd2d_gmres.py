@@ -100,6 +100,10 @@ class petscMHD2D(object):
         OptDB.setValue('ksp_atol',   cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', cfg['solver']['petsc_ksp_max_iter'])
         
+        OptDB.setValue('pc_type', 'hypre')
+        OptDB.setValue('pc_hypre_type', 'boomeramg')
+        OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
+        
 # #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
 # #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
 #         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
@@ -236,9 +240,6 @@ class petscMHD2D(object):
         self.snes.getKSP().getPC().setType('asm')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
-        # place holder for Poisson solver
-        self.poisson_ksp = None
-        
         # create derivatives object
         self.derivatives = PETScDerivatives(self.da1, self.nx, self.ny, self.ht, self.hx, self.hy)
         
@@ -325,36 +326,31 @@ class petscMHD2D(object):
                 O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], Lx, Ly)
         
         
-        # solve for consistent initial A
+        # setup Poisson solver
         self.poisson_ksp = PETSc.KSP().create()
+#         self.poisson_ksp.setDM(self.da1)
         self.poisson_ksp.setFromOptions()
         self.poisson_ksp.setOperators(self.Pm)
-        self.poisson_ksp.setType('preonly')
-        self.poisson_ksp.getPC().setType('lu')
-        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
+#         self.poisson_ksp.setTolerances(rtol=1E-15, atol=1E-16)
+        self.poisson_ksp.setTolerances(rtol=1E-14, atol=1E-12)
+        self.poisson_ksp.setType('cg')
+        self.poisson_ksp.getPC().setType('hypre')
         
+        # solve for consistent initial A
+        self.A.set(0.)
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.J, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.A)
         
-        del self.poisson_ksp
-        
-        
         # solve for consistent initial psi
-        self.poisson_ksp = PETSc.KSP().create()
-        self.poisson_ksp.setFromOptions()
-        self.poisson_ksp.setOperators(self.Pm)
-        self.poisson_ksp.setType('preonly')
-        self.poisson_ksp.getPC().setType('lu')
-        self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
-#         self.poisson_ksp.setNullSpace(self.poisson_nullspace)
-        
+        self.P.set(0.)
         self.petsc_poisson.formMat(self.Pm)
         self.petsc_poisson.formRHS(self.O, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.P)
         
-        del self.poisson_ksp
+        # delete Poisson solver
+        self.poisson_ksp.destroy()
+        self.Pm.destroy()
         
         
         # copy initial data vectors to x
@@ -401,11 +397,9 @@ class petscMHD2D(object):
     
     def __del__(self):
         self.hdf5_viewer.destroy()
-#         self.poisson_ksp.destroy()
         self.snes.destroy()
         self.Jac.destroy()
         self.M.destroy()
-        self.Pm.destroy()
     
     
     def updateJacobian(self, snes, X, J, P):
@@ -431,7 +425,8 @@ class petscMHD2D(object):
             self.snes.solve(None, self.x)
             
             # compute function norm
-            self.petsc_solver.function(self.x, self.f)
+            self.petsc_solver.update_previous(self.x)
+            self.petsc_solver.function(self.f)
             norm = self.f.norm()
             
             # output some solver info

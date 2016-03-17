@@ -79,6 +79,15 @@ ext_modules = [
                   extra_compile_args=CARGS,
                   extra_link_args=LARGS
                  ),
+        Extension("PETScPreconditionerArakawaJ1CFD2Vec",
+                  sources=["PETScPreconditionerArakawaJ1CFD2Vec.pyx"],
+                  include_dirs=INCLUDE_DIRS + [os.curdir],
+                  libraries=LIBRARIES,
+                  library_dirs=LIBRARY_DIRS,
+                  runtime_library_dirs=LIBRARY_DIRS,
+                  extra_compile_args=CARGS,
+                  extra_link_args=LARGS
+                 ),
         Extension("PETScOhmsLawArakawaJ1",
                   sources=["PETScOhmsLawArakawaJ1.pyx"],
                   include_dirs=INCLUDE_DIRS + [os.curdir],

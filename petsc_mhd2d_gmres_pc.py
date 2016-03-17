@@ -10,16 +10,18 @@ petsc4py.init(sys.argv)
 from petsc4py import PETSc
 
 import numpy as np
+from numpy import abs
 
 import argparse, time
 import pstats, cProfile
 
 from config import Config
 
-from PETScDerivatives                  import PETScDerivatives
-from PETScPoissonCFD2                  import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
-from PETScPreconditionerArakawaJ1CFD2  import PETScPreconditioner
+from PETScDerivatives                    import PETScDerivatives
+from PETScPoissonCFD2                    import PETScPoisson
+from PETScNonlinearSolverArakawaJ1CFD2   import PETScSolver
+from PETScPreconditionerArakawaJ1CFD2    import PETScPreconditioner
+# from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
 
 
 solver_package = 'superlu_dist'
@@ -69,6 +71,9 @@ class petscMHD2D(object):
         else:
             y1 = 0.0
             y2 = Ly
+        
+        self.tolerance = self.cfg['solver']['petsc_snes_atol'] * self.nx * self.ny
+        
         
         
         self.hx = Lx / self.nx                       # gridstep size in x
@@ -141,7 +146,7 @@ class petscMHD2D(object):
 #         OptDB.setValue('snes_monitor', '')
 #          
 #        OptDB.setValue('log_info',    '')
-#        OptDB.setValue('log_summary', '')
+#         OptDB.setValue('log_summary', '')
         
         
         # create DA with single dof
@@ -194,6 +199,8 @@ class petscMHD2D(object):
         self.b  = self.da4.createGlobalVec()
         self.f  = self.da4.createGlobalVec()
         self.Pb = self.da1.createGlobalVec()
+        self.FA = self.da1.createGlobalVec()
+        self.FO = self.da1.createGlobalVec()
         
         #  nullspace vectors
         self.x0 = self.da4.createGlobalVec()
@@ -204,6 +211,16 @@ class petscMHD2D(object):
         self.J  = self.da1.createGlobalVec()        # current density           J
         self.P  = self.da1.createGlobalVec()        # streaming function        psi
         self.O  = self.da1.createGlobalVec()        # vorticity                 omega
+
+        self.Ap = self.da1.createGlobalVec()
+        self.Jp = self.da1.createGlobalVec()
+        self.Pp = self.da1.createGlobalVec()
+        self.Op = self.da1.createGlobalVec()
+
+        self.Ah = self.da1.createGlobalVec()
+        self.Jh = self.da1.createGlobalVec()
+        self.Ph = self.da1.createGlobalVec()
+        self.Oh = self.da1.createGlobalVec()
 
         self.Bx = self.da1.createGlobalVec()
         self.By = self.da1.createGlobalVec()
@@ -239,6 +256,13 @@ class petscMHD2D(object):
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.petsc_precon)
         self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
         
+        
+        self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver'].as_float('pc_poisson_rtol'),
+                                         poisson_atol=self.cfg['solver'].as_float('pc_poisson_atol'),
+                                         poisson_max_it=self.cfg['solver'].as_int('pc_poisson_max_iter'),
+                                         parabol_rtol=self.cfg['solver'].as_float('pc_parabol_rtol'),
+                                         parabol_atol=self.cfg['solver'].as_float('pc_parabol_atol'),
+                                         parabol_max_it=self.cfg['solver'].as_int('pc_parabol_max_iter'))
         
         # initialise Poisson matrix
         self.Pm = self.da1.createMat()
@@ -354,43 +378,43 @@ class petscMHD2D(object):
         self.poisson_ksp.setFromOptions()
         self.poisson_ksp.setOperators(self.Pm)
 #         self.poisson_ksp.setTolerances(rtol=1E-15, atol=1E-16)
-        self.poisson_ksp.setTolerances(rtol=1E-14, atol=1E-12)
+        self.poisson_ksp.setTolerances(rtol=self.cfg['solver'].as_float('poisson_ksp_rtol'),
+                                       atol=self.cfg['solver'].as_float('poisson_ksp_atol'),
+                                       max_it=self.cfg['solver'].as_int('poisson_ksp_max_iter'))
         self.poisson_ksp.setType('cg')
         self.poisson_ksp.getPC().setType('hypre')
         
-        # solve for consistent initial A
-        self.A.set(0.)
         self.petsc_poisson.formMat(self.Pm)
+        
+        # solve for consistent initial A
+#         self.A.set(0.)
         self.petsc_poisson.formRHS(self.J, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.A)
         
         # solve for consistent initial psi
-        self.P.set(0.)
-        self.petsc_poisson.formMat(self.Pm)
+#         self.P.set(0.)
         self.petsc_poisson.formRHS(self.O, self.Pb)
         self.poisson_ksp.solve(self.Pb, self.P)
         
-        # delete Poisson solver
-        self.poisson_ksp.destroy()
-        self.Pm.destroy()
-        
-        
         # copy initial data vectors to x
         x_arr = self.da4.getVecArray(self.x)
-        A_arr = self.da1.getVecArray(self.A)
-        J_arr = self.da1.getVecArray(self.J)
-        P_arr = self.da1.getVecArray(self.P)
-        O_arr = self.da1.getVecArray(self.O)
+        x_arr[xs:xe, ys:ye, 0] = self.da1.getVecArray(self.A)[xs:xe, ys:ye]
+        x_arr[xs:xe, ys:ye, 1] = self.da1.getVecArray(self.J)[xs:xe, ys:ye]
+        x_arr[xs:xe, ys:ye, 2] = self.da1.getVecArray(self.P)[xs:xe, ys:ye]
+        x_arr[xs:xe, ys:ye, 3] = self.da1.getVecArray(self.O)[xs:xe, ys:ye]
         
-        x_arr[xs:xe, ys:ye, 0] = A_arr[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 1] = J_arr[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 2] = P_arr[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 3] = O_arr[xs:xe, ys:ye]
+        self.A.copy(self.Ap)
+        self.J.copy(self.Jp)
+        self.P.copy(self.Pp)
+        self.O.copy(self.Op)
         
+        self.A.copy(self.Ah)
+        self.J.copy(self.Jh)
+        self.P.copy(self.Ph)
+        self.O.copy(self.Oh)
         
         # update solution history
         self.petsc_solver.update_history(self.x)
-        self.petsc_precon.update_history(self.x)
         
         
         # create HDF5 output file
@@ -420,11 +444,19 @@ class petscMHD2D(object):
     def __del__(self):
         self.ksp.destroy()
         self.Jmf.destroy()
+        self.poisson_ksp.destroy()
+        self.Pm.destroy()
         self.hdf5_viewer.destroy()
     
     
     def run(self):
         
+#         alpha = 1.5
+        alpha = 1.1
+        gamma = 0.9
+        ksp_max = 1E-1
+#         ksp_max = 1E-3
+                    
         for itime in range(1, self.nt+1):
             current_time = self.ht*itime
             
@@ -435,26 +467,30 @@ class petscMHD2D(object):
                 self.time.setValue(0, current_time)
             
             # calculate initial guess
-#            self.calculate_initial_guess()
+            self.calculate_initial_guess(itime)
             
             # solve
             i = 0
             
             self.petsc_solver.update_previous(self.x)
-            self.petsc_precon.update_previous(self.x)
             
             self.petsc_solver.function(self.f)
             pred_norm = self.f.norm()
+            prev_norm = pred_norm
+            
+            tolerance = self.tolerance + self.cfg['solver']['petsc_snes_rtol'] * pred_norm 
+#             print("tolerance:", self.tolerance, self.cfg['solver']['petsc_snes_rtol'] * pred_norm, tolerance)
+            
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Nonlinear Solver Iteration %i:                           residual = %22.16E" % (i, pred_norm))
             
             while True:
-                if PETSc.COMM_WORLD.getRank() == 0:
-                    print("  Residual at iteration %i:                          residual = %24.16E" % (i, pred_norm))
             
                 i+=1
                 
                 self.f.copy(self.b)
                 self.b.scale(-1.)
-                self.dy.set(0.)
+#                 self.dy.set(0.)
 #                 self.b.copy(self.dy)
 
 #                 if PETSc.COMM_WORLD.getRank() == 0:
@@ -462,29 +498,47 @@ class petscMHD2D(object):
 #                 
 #                 self.petsc_precon.solve(self.b, self.dy)
                 
-                if PETSc.COMM_WORLD.getRank() == 0:
-                    print("KSP solve")
+#                 if PETSc.COMM_WORLD.getRank() == 0:
+#                     print("KSP solve")
                 
+                if i == 1:
+                    zeta_A  = 0.
+                    zeta_B  = 0.
+                    zeta_C  = 0.
+                    zeta_D  = 0.
+                    ksp_tol = self.cfg['solver'].as_float('petsc_ksp_rtol')
+                else:
+                    zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
+                    zeta_B  = np.power(ksp_tol, alpha)
+                    zeta_C  = np.min([ksp_max, np.max(zeta_A, zeta_B)])
+                    zeta_D  = gamma * tolerance / pred_norm
+                    ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
+                
+#                 if PETSc.COMM_WORLD.getRank() == 0:
+#                     print("  KSP tolerance: ", ksp_tol, zeta_A, zeta_B, zeta_C, zeta_D)
+                
+                self.ksp.setTolerances(rtol=ksp_tol)
                 self.ksp.solve(self.b, self.dy)
                 
-                if PETSc.COMM_WORLD.getRank() == 0:
-                    print(" PC solve")
-                    
+#                 if PETSc.COMM_WORLD.getRank() == 0:
+#                     print(" PC solve")
+                
                 self.petsc_precon.solve(self.dy, self.dx)
                 
                 self.x.axpy(1., self.dx)
                 
                 self.petsc_solver.update_previous(self.x)
-                self.petsc_precon.update_previous(self.x)
                 
                 prev_norm = pred_norm
                 self.petsc_solver.function(self.f)
                 pred_norm = self.f.norm()
 
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print("  Nonlinear Solver: %5i GMRES  iterations, residual = %24.16E" % (self.snes.getLinearSolveIterations(), pred_norm) )
+
+                if PETSc.COMM_WORLD.getRank() == 0:
+                    print("  Nonlinear Solver Iteration %i: %5i GMRES iterations,   residual = %22.16E,   tolerance = %22.16E" % (i, self.ksp.getIterationNumber(), pred_norm, ksp_tol) )
                 
-                if (pred_norm > prev_norm and i > 1) or pred_norm < self.cfg['solver']['petsc_snes_atol'] or i >= self.cfg['solver']['petsc_snes_max_iter']:
+#                 if (pred_norm > prev_norm and i > 1) or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
+                if abs(prev_norm - pred_norm) < self.cfg['solver']['petsc_snes_stol'] or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
                     break
             
             # compute function norm
@@ -492,8 +546,8 @@ class petscMHD2D(object):
             # output some solver info
             if PETSc.COMM_WORLD.getRank() == 0:
                 print()
-                print("  Nonlin Solver:  %5i iterations,   funcnorm = %24.16E" % (i, pred_norm) )
-                print()
+#                 print("  Nonlin Solver:  %5i iterations,   funcnorm = %24.16E" % (i, pred_norm) )
+#                 print()
             
 #             if self.snes.getConvergedReason() < 0:
 #                 if PETSc.COMM_WORLD.getRank() == 0:
@@ -501,37 +555,94 @@ class petscMHD2D(object):
 #                     print("Solver not converging...   (Reason: %i)" % (self.snes.getConvergedReason()))
 #                     print()
            
-           
+            # copy history
+            self.Ap.copy(self.Ah)
+            self.Jp.copy(self.Jh)
+            self.Pp.copy(self.Ph)
+            self.Op.copy(self.Oh)
+            
+            x_arr = self.da4.getVecArray(self.x)
+            
+            self.da1.getVecArray(self.Ap)[:,:] = x_arr[:,:,0]
+            self.da1.getVecArray(self.Jp)[:,:] = x_arr[:,:,1]
+            self.da1.getVecArray(self.Pp)[:,:] = x_arr[:,:,2]
+            self.da1.getVecArray(self.Op)[:,:] = x_arr[:,:,3]
+            
             # update history
             self.petsc_solver.update_history(self.x)
-            self.petsc_precon.update_history(self.x)
             
             # save to hdf5 file
-#            if itime % self.nsave == 0 or itime == self.grid.nt + 1:
-            self.save_to_hdf5(itime)
+            if itime % self.nsave == 0 or itime == self.nt + 1:
+                self.save_to_hdf5(itime)
             
         
-#     def calculate_initial_guess(self):
-#         self.poisson_ksp = PETSc.KSP().create()
-#         self.poisson_ksp.setFromOptions()
-#         self.poisson_ksp.setOperators(self.M)
-#         self.poisson_ksp.setType('preonly')
-#         self.poisson_ksp.getPC().setType('lu')
-#         self.poisson_ksp.getPC().setFactorSolverPackage(solver_package)
-#     
-#         # build matrix
-#         self.petsc_matrix.formMat(self.M)
-#         
-# #        mat_viewer = PETSc.Viewer().createDraw(size=(800,800), comm=PETSc.COMM_WORLD)
-# #        mat_viewer(self.M)
-# #        input("Press Enter")
-#         
-#         # build RHS
-#         self.b.set(0.)
-# #        self.petsc_matrix.formRHS(self.b)
-#         
-#         # solve
-#         self.poisson_ksp.solve(self.b, self.x)
+    def calculate_initial_guess(self, itime):
+        if itime == 1:
+            self.derivatives.arakawa_vec(self.Ap, self.Pp, self.FA)
+            self.A.axpy(self.ht, self.FA)
+            
+            self.derivatives.arakawa_vec(self.Op, self.Pp, self.FO)
+            self.O.axpy(self.ht, self.FO)
+            self.derivatives.arakawa_vec(self.Ap, self.Jp, self.FO)
+            self.O.axpy(self.ht, self.FO)
+        
+        else:
+        
+            self.A.set(0.)
+            self.O.set(0.)
+            
+            t0 = 0.
+            t1 = 1.
+            t  = 2.
+            
+            a0 = 2./(t0-t1)
+            a1 = 2./(t1-t0)
+            
+            b0 = 1./(t0-t1)**2
+            b1 = 1./(t1-t0)**2
+            
+            d = 1./(t-t0)
+            c1 = d*b0
+            c0 = c1*(d-a0)
+            den = c0
+            
+            self.A.axpy(c0, self.Ah)
+            self.derivatives.arakawa_vec(self.Ah, self.Ph, self.FA)
+            self.A.axpy(c1*self.ht, self.FA)
+            
+            self.O.axpy(c0, self.Oh)
+            self.derivatives.arakawa_vec(self.Oh, self.Ph, self.FO)
+            self.O.axpy(c1*self.ht, self.FO)
+            self.derivatives.arakawa_vec(self.Ah, self.Jh, self.FO)
+            self.O.axpy(c1*self.ht, self.FO)
+            
+            d = 1./(t-t1)
+            c1 = d*b1
+            c0 = c1*(d-a1)
+            den += c0
+    
+            self.A.axpy(c0, self.Ap)
+            self.derivatives.arakawa_vec(self.Ap, self.Pp, self.FA)
+            self.A.axpy(c1*self.ht, self.FA)
+            
+            self.O.axpy(c0, self.Op)
+            self.derivatives.arakawa_vec(self.Op, self.Pp, self.FO)
+            self.O.axpy(c1*self.ht, self.FO)
+            self.derivatives.arakawa_vec(self.Ap, self.Jp, self.FO)
+            self.O.axpy(c1*self.ht, self.FO)
+            
+            self.A.scale(1./den)
+            self.O.scale(1./den)
+        
+        self.derivatives.laplace_vec(self.A, self.J, -1.)
+        
+        self.poisson_ksp.solve(self.O, self.P)
+        
+        x_arr = self.da4.getVecArray(self.x)
+        x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+        x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+        x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+        x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
         
     
     
