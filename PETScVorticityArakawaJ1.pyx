@@ -22,7 +22,7 @@ cdef class PETScVorticity(object):
     built on top of the SciPy Sparse package.
     '''
     
-    def __init__(self, object da1, np.uint64_t nx, np.uint64_t ny,
+    def __init__(self, object da1, int nx, int ny,
                        double ht, double hx, double hy):
         '''
         Constructor
@@ -42,6 +42,8 @@ cdef class PETScVorticity(object):
         self.ht_inv = 1. / ht
         self.hx_inv = 1. / hx
         self.hy_inv = 1. / hy
+        
+        self.arakawa_fac = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
         
         
         # create history vector
@@ -77,21 +79,17 @@ cdef class PETScVorticity(object):
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        cdef int i, j, stencil
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
+        stencil = self.da1.getStencilWidth()
         
         self.da1.globalToLocal(self.Pp, self.localPp)
         self.da1.globalToLocal(self.Ph, self.localPh)
         
-        cdef np.ndarray[np.float64_t, ndim=2] Pp = self.da1.getVecArray(self.localPp)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Ph = self.da1.getVecArray(self.localPh)[...]
-        
-        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
-        
-        cdef double arak_fac = 0.5 * self.hx_inv * self.hy_inv / 12.
+        cdef double[:,:] P_ave = 0.5 * (self.da1.getVecArray(self.localPp)[:,:] + self.da1.getVecArray(self.localPh)[:,:])
         
         
         A.zeroEntries()
@@ -103,28 +101,28 @@ cdef class PETScVorticity(object):
         col.field = 0
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 
                 row.index = (i,j)
                 
                 # dO/dt + [P, dO] 
                 for index, value in [
-                        ((i-1, j-1), + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i-1, j  ), + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                     + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * arak_fac),
-                        ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * arak_fac),
-                        ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                     - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * arak_fac),
+                        ((i-1, j-1), + (P_ave[ix-1, jx  ] - P_ave[ix,   jx-1]) * self.arakawa_fac),
+                        ((i-1, j  ), + (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * self.arakawa_fac \
+                                     + (P_ave[ix-1, jx+1] - P_ave[ix-1, jx-1]) * self.arakawa_fac),
+                        ((i-1, j+1), + (P_ave[ix,   jx+1] - P_ave[ix-1, jx  ]) * self.arakawa_fac),
+                        ((i,   j-1), - (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * self.arakawa_fac \
+                                     - (P_ave[ix+1, jx-1] - P_ave[ix-1, jx-1]) * self.arakawa_fac),
                         ((i,   j  ), self.ht_inv),
-                        ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * arak_fac \
-                                     + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * arak_fac),
-                        ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * arak_fac),
-                        ((i+1, j  ), - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * arak_fac \
-                                     - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * arak_fac),
-                        ((i+1, j+1), - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * arak_fac),
+                        ((i,   j+1), + (P_ave[ix+1, jx  ] - P_ave[ix-1, jx  ]) * self.arakawa_fac \
+                                     + (P_ave[ix+1, jx+1] - P_ave[ix-1, jx+1]) * self.arakawa_fac),
+                        ((i+1, j-1), - (P_ave[ix+1, jx  ] - P_ave[ix,   jx-1]) * self.arakawa_fac),
+                        ((i+1, j  ), - (P_ave[ix,   jx+1] - P_ave[ix,   jx-1]) * self.arakawa_fac \
+                                     - (P_ave[ix+1, jx+1] - P_ave[ix+1, jx-1]) * self.arakawa_fac),
+                        ((i+1, j+1), - (P_ave[ix,   jx+1] - P_ave[ix+1, jx  ]) * self.arakawa_fac),
                     ]:
 
                     col.index = index
@@ -140,11 +138,12 @@ cdef class PETScVorticity(object):
         
     
     def function(self, Vec X, Vec Y):
-        cdef np.int64_t i, j
-        cdef np.int64_t ix, iy, jx, jy
-        cdef np.int64_t xe, xs, ye, ys
+        cdef int i, j, stencil
+        cdef int ix, iy, jx, jy
+        cdef int xe, xs, ye, ys
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
+        stencil = self.da1.getStencilWidth()
         
         self.da1.globalToLocal(X,       self.localOp)
         self.da1.globalToLocal(self.Oh, self.localOh)
@@ -153,27 +152,22 @@ cdef class PETScVorticity(object):
         self.da1.globalToLocal(self.Ah, self.localAh)
         self.da1.globalToLocal(self.Jh, self.localJh)
         
-        cdef np.ndarray[np.float64_t, ndim=2] Op = self.da1.getVecArray(self.localOp)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Oh = self.da1.getVecArray(self.localOh)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Pp = self.da1.getVecArray(self.localPp)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Ph = self.da1.getVecArray(self.localPh)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Ah = self.da1.getVecArray(self.localAh)[...]
-        cdef np.ndarray[np.float64_t, ndim=2] Jh = self.da1.getVecArray(self.localJh)[...]
-        
-        cdef double[:,:] A_ave = Ah
-        cdef double[:,:] J_ave = Jh
-        cdef double[:,:] P_ave = 0.5 * (Pp + Ph)
-        cdef double[:,:] O_ave = 0.5 * (Op + Oh)
+        cdef double[:,:] Op    = self.da1.getVecArray(self.localOp)[...]
+        cdef double[:,:] Oh    = self.da1.getVecArray(self.localOh)[...]
+        cdef double[:,:] A_ave = self.da1.getVecArray(self.localAh)[:,:]
+        cdef double[:,:] J_ave = self.da1.getVecArray(self.localJh)[:,:]
+        cdef double[:,:] P_ave = 0.5 * (self.da1.getVecArray(self.localPp)[:,:] + self.da1.getVecArray(self.localPh)[:,:])
+        cdef double[:,:] O_ave = 0.5 * (self.da1.getVecArray(self.localOp)[:,:] + self.da1.getVecArray(self.localOh)[:,:])
         
         cdef double[:,:] y     = self.da1.getVecArray(Y)[...]
         
         
         for i in range(xs, xe):
-            ix = i-xs+2
+            ix = i-xs+stencil
             iy = i-xs
             
             for j in range(ys, ye):
-                jx = j-ys+2
+                jx = j-ys+stencil
                 jy = j-ys
                 
                 y[iy, jy] = (Op[ix,jx] - Oh[ix,jx] ) * self.ht_inv \
