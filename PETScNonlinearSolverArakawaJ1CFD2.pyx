@@ -100,14 +100,19 @@ cdef class PETScSolver(object):
         
     
     def update_history(self, Vec X):
-        X.copy(self.Xh)
+#         X.copy(self.Xh)
+#         
+#         x = self.da4.getVecArray(self.Xh)
+#          
+#         self.da1.getVecArray(self.Ah)[:,:] = x[:,:,0]
+#         self.da1.getVecArray(self.Jh)[:,:] = x[:,:,1]
+#         self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
+#         self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
         
-        x = self.da4.getVecArray(self.Xh)
-         
-        self.da1.getVecArray(self.Ah)[:,:] = x[:,:,0]
-        self.da1.getVecArray(self.Jh)[:,:] = x[:,:,1]
-        self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
-        self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
+        self.Ap.copy(self.Ah)
+        self.Jp.copy(self.Jh)
+        self.Pp.copy(self.Ph)
+        self.Op.copy(self.Oh)
         
         if self.pc is not None:
             self.pc.update_history(self.Ah, self.Jh, self.Ph, self.Oh)
@@ -136,7 +141,7 @@ cdef class PETScSolver(object):
         
         if self.pc is not None:
             self.pc.update_previous(self.Ap, self.Jp, self.Pp, self.Op)
-        
+    
     
     @cython.boundscheck(False)
     def formMat(self, Mat A):
