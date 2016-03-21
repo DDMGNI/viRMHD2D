@@ -69,11 +69,6 @@ class rmhd2d_asm(rmhd2d):
         OptDB.setValue('pc_hypre_type', 'boomeramg')
         OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
         
-# #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
-# #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
-#         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
-#         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
-        
         
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)

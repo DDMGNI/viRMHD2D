@@ -49,57 +49,16 @@ class rmhd2d_ppc(rmhd2d):
 #         OptDB.setValue('log_info',    '')
 #         OptDB.setValue('log_summary', '')
 
-#         OptDB.setValue('snes_ls', 'basic')
-#         OptDB.setValue('snes_ls', 'quadratic')
-# 
-#         OptDB.setValue('pc_asm_type',  'restrict')
-#         OptDB.setValue('pc_asm_overlap', 3)
-#         OptDB.setValue('sub_ksp_type', 'preonly')
-#         OptDB.setValue('sub_pc_type', 'lu')
-#         OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
-        
-#         OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
-#         OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])
-#         OptDB.setValue('snes_stol',   self.cfg['solver']['petsc_snes_stol'])
-#         OptDB.setValue('snes_max_it', self.cfg['solver']['petsc_snes_max_iter'])
-        
         OptDB.setValue('ksp_rtol',   self.cfg['solver']['petsc_ksp_rtol'])
         OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
 #         OptDB.setValue('ksp_initial_guess_nonzero', 1)
         
-        
-#         OptDB.setValue('ksp_type', 'fgmres')
-#         OptDB.setValue('pc_type', 'gamg')
-#         OptDB.setValue('pc_type', 'ml')
         OptDB.setValue('pc_type', 'hypre')
         OptDB.setValue('pc_hypre_type', 'boomeramg')
-#         OptDB.setValue('pc_hypre_boomeramg_tol',  1e-7)
         OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
 #         OptDB.setValue('pc_hypre_boomeramg_max_levels', 6)
-        
-#         OptDB.setValue('pc_hypre_type', 'parasails')
-#         OptDB.setValue('da_refine', 1)
-#         OptDB.setValue('pc_mg_levels', 3)
-# #         OptDB.setValue('pc_mg_type', 'full')
-#         OptDB.setValue('mg_coarse_ksp_type', 'cg')
-#         OptDB.setValue('mg_coarse_pc_type', 'jacobi')
-#         OptDB.setValue('mg_coarse_ksp_max_it', 10)
-# #         OptDB.setValue('mg_coarse_ksp_type', 'preonly')
-# #         OptDB.setValue('mg_coarse_pc_type', 'lu')
-# #         OptDB.setValue('mg_coarse_pc_factor_shift_type', 'nonzero')
-# #         OptDB.setValue('mg_levels_ksp_type', 'richardson')
-#         OptDB.setValue('mg_levels_ksp_type', 'chebyshev')
-#         OptDB.setValue('mg_levels_pc_type', 'jacobi')
-# #         OptDB.setValue('mg_levels_pc_type', 'sor')
-#         OptDB.setValue('mg_levels_ksp_max_it', 10)
-        
-# #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
-# #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
-#         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
-#         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
-        
-        
+#         OptDB.setValue('pc_hypre_boomeramg_tol',  1e-7)
         
         
         # create Jacobian, Function, and linear Matrix objects
