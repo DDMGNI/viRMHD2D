@@ -257,12 +257,13 @@ class petscMHD2D(object):
         self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
         
         
-        self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver'].as_float('pc_poisson_rtol'),
-                                         poisson_atol=self.cfg['solver'].as_float('pc_poisson_atol'),
-                                         poisson_max_it=self.cfg['solver'].as_int('pc_poisson_max_iter'),
-                                         parabol_rtol=self.cfg['solver'].as_float('pc_parabol_rtol'),
-                                         parabol_atol=self.cfg['solver'].as_float('pc_parabol_atol'),
-                                         parabol_max_it=self.cfg['solver'].as_int('pc_parabol_max_iter'))
+        self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
+                                         poisson_atol=self.cfg['solver']['pc_poisson_atol'],
+                                         poisson_max_it=self.cfg['solver']['pc_poisson_max_iter'],
+                                         parabol_rtol=self.cfg['solver']['pc_parabol_rtol'],
+                                         parabol_atol=self.cfg['solver']['pc_parabol_atol'],
+                                         parabol_max_it=self.cfg['solver']['pc_parabol_max_iter'],
+                                         jacobi_max_it=self.cfg['solver']['pc_jacobi_max_iter'])
         
         # initialise Poisson matrix
         self.Pm = self.da1.createMat()

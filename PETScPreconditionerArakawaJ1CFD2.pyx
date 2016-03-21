@@ -48,6 +48,9 @@ cdef class PETScPreconditioner(object):
         self.hx_inv = 1. / hx
         self.hy_inv = 1. / hy
         
+        # jacobi solver
+        self.jacobi_max_it = 3
+        
         # create solver vectors
         self.F  = self.da4.createGlobalVec()
         self.L  = self.da1.createGlobalVec()
@@ -140,7 +143,8 @@ cdef class PETScPreconditioner(object):
     
     
     def set_tolerances(self, poisson_rtol=0., poisson_atol=0., poisson_max_it=0,
-                             parabol_rtol=0., parabol_atol=0., parabol_max_it=0):
+                             parabol_rtol=0., parabol_atol=0., parabol_max_it=0,
+                             jacobi_max_it=0):
         
         if poisson_rtol > 0.:
             self.poisson_ksp.setTolerances(rtol=poisson_rtol)
@@ -159,6 +163,9 @@ cdef class PETScPreconditioner(object):
             
         if parabol_max_it > 0:
             self.parabol_ksp.setTolerances(max_it=parabol_max_it)
+            
+        if jacobi_max_it > 0:
+            self.jacobi_max_it = jacobi_max_it
     
     
     def update_history(self, Vec Ah, Vec Jh, Vec Ph, Vec Oh):
@@ -290,7 +297,7 @@ cdef class PETScPreconditioner(object):
         ad = self.da1.getVecArray(self.localAd)[...]
         pd = self.da1.getVecArray(self.localPd)[...]
          
-        for k in range(3):
+        for k in range(self.jacobi_max_it):
             
             if k == 0:
                 self.T.set(0)

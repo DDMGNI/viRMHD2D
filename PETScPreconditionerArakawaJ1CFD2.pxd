@@ -25,6 +25,7 @@ cdef class PETScPreconditioner(object):
     cdef double hx_inv
     cdef double hy_inv
     
+    cdef int jacobi_max_it
     cdef object da1
     cdef object da4
     
