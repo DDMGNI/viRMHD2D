@@ -56,9 +56,7 @@ class PlotMHD2D(object):
         self.y[0:-1] = self.diagnostics.yGrid
         self.y[  -1] = self.y[-2] + self.diagnostics.hy
         
-        self.A       = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
         self.J       = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
-        self.PB      = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
         
         
         # set up figure/window size
@@ -86,6 +84,9 @@ class PlotMHD2D(object):
         
         # create contour plot
         self.conts = self.axes.contourf(self.x, self.y, self.J.T, 51, norm=self.Jnorm)
+#         self.axes.pcolormesh(self.x, self.y, self.J.T, cmap=plt.get_cmap('viridis'))
+#         self.axes.set_xlim((self.x[0], self.x[-1]))
+#         self.axes.set_ylim((self.y[0], self.y[-1]))
         
         for tick in self.axes.xaxis.get_major_ticks():
             tick.set_pad(12)
@@ -99,17 +100,9 @@ class PlotMHD2D(object):
     
     def read_data(self):
         
-        self.A[0:-1, 0:-1] = self.diagnostics.A[:,:]
-        self.A[  -1, 0:-1] = self.diagnostics.A[0,:]
-        self.A[   :,   -1] = self.A[:,0]
-        
         self.J[0:-1, 0:-1] = self.diagnostics.J[:,:]
         self.J[  -1, 0:-1] = self.diagnostics.J[0,:]
         self.J[   :,   -1] = self.J[:,0]
-        
-#         self.PB[0:-1, 0:-1] = self.diagnostics.e_magnetic[:,:]
-#         self.PB[  -1, 0:-1] = self.diagnostics.e_magnetic[0,:]
-#         self.PB[   :,   -1] = self.PB[:,0]
         
     
     
@@ -126,26 +119,6 @@ class PlotMHD2D(object):
         self.Jnorm = colors.Normalize(vmin=Jmin - 0.2*Jdiff, vmax=Jmax + 0.2*Jdiff)
         self.JTicks = np.linspace(Jmin - 0.2*Jdiff, Jmax + 0.2*Jdiff, 51, endpoint=True)
         
-        
-#         PBmin = min(self.diagnostics.e_magnetic.min(), -self.diagnostics.e_magnetic.max())
-#         PBmax = min(self.diagnostics.e_magnetic.max(), -self.diagnostics.e_magnetic.min())
-#         PBdiff = (PBmax - PBmin)
-#         
-#         if PBmin == PBmax:
-#             PBmin -= .1 * PBmin
-#             PBmax += .1 * PBmax
-        
-#         self.PBnorm = colors.Normalize(vmin=PBmin - 0.2*PBdiff, vmax=PBmax + 0.2*PBdiff)
-#         self.PBTicks = np.linspace(PBmin - 0.2*PBdiff, PBmax + 0.2*PBdiff, 51, endpoint=True)
-
-
-        Amin = min(self.diagnostics.A.min(), -self.diagnostics.A.max())
-        Amax = max(self.diagnostics.A.max(), -self.diagnostics.A.min())
-        Adiff = Amax - Amin
-        
-        self.Anorm = colors.Normalize(vmin=Amin - 0.2*Adiff, vmax=Amax + 0.2*Adiff)
-#        self.ATicks = np.linspace(Amin + 0.01 * Adiff, Amax - 0.01 * Adiff, 31)
-        self.ATicks = np.linspace(Amin + 0.01 * Adiff, Amax - 0.01 * Adiff, 51, endpoint=True)
     
     
     def update(self):
@@ -157,15 +130,20 @@ class PlotMHD2D(object):
 
         for coll in self.conts.collections:
             self.axes.collections.remove(coll)
+         
+        self.conts = self.axes.contourf(self.x, self.y, self.J.T, 51, norm=self.Jnorm, cmap=plt.get_cmap('viridis'))
         
-        self.conts = self.axes.contourf(self.x, self.y, self.J.T, 51, norm=self.Jnorm)
+#         self.axes.cla()
+#         self.axes.pcolormesh(self.x, self.y, self.J.T, cmap=plt.get_cmap('viridis'))
+#         self.axes.set_xlim((self.x[0], self.x[-1]))
+#         self.axes.set_ylim((self.y[0], self.y[-1]))
         
         plt.draw()
         
         filename = self.prefix + str('_J_%06d' % self.iTime) + '.png'
         plt.savefig(filename, dpi=300)
-        filename = self.prefix + str('_J_%06d' % self.iTime) + '.pdf'
-        plt.savefig(filename)
+#         filename = self.prefix + str('_J_%06d' % self.iTime) + '.pdf'
+#         plt.savefig(filename)
     
     
     def add_timepoint(self):
