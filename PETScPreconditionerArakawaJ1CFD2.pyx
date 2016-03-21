@@ -13,7 +13,7 @@ cimport numpy as np
 
 from petsc4py import PETSc
 
-from petsc4py.PETSc cimport Mat, Vec
+from petsc4py.PETSc cimport PC, Mat, Vec
 
 from PETScDerivatives import PETScDerivatives
 from PETScPoissonCFD2 import PETScPoisson
@@ -215,6 +215,10 @@ cdef class PETScPreconditioner(object):
         self.fo = self.da1.getVecArray(self.localFO)[...]
         
     
+    def apply(self, PC pc, Vec F, Vec Y):
+        self.solve(F, Y)
+        
+        
     @cython.wraparound(False)
     @cython.boundscheck(False)
     def solve(self, Vec F, Vec Y):
