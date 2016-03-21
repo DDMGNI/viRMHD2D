@@ -16,7 +16,7 @@ from petsc4py.PETSc cimport Mat, Vec
 from PETScDerivatives import PETScDerivatives
 
 
-cdef class PETScSolver(object):
+cdef class PETScSolverDOF2(object):
     '''
     The PETScSolver class implements a nonlinear solver for the reduced MHD system
     built on top of the PETSc SNES module.

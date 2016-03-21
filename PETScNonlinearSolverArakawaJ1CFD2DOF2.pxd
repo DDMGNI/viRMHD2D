@@ -11,7 +11,7 @@ from petsc4py.PETSc cimport Mat, SNES, Vec
 from PETScDerivatives cimport PETScDerivatives
 
 
-cdef class PETScSolver(object):
+cdef class PETScSolverDOF2(object):
 
     cdef int  nx
     cdef int  ny
