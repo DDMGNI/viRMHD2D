@@ -299,6 +299,7 @@ class petscMHD2D(object):
         self.ksp = PETSc.KSP().create()
         self.ksp.setFromOptions()
         self.ksp.setOperators(self.Jmf)
+        self.ksp.setInitialGuessNonzero(True)
         self.ksp.setType('fgmres')
         self.ksp.getPC().setType('none')
 
@@ -408,11 +409,13 @@ class petscMHD2D(object):
         # solve for consistent initial A
 #         self.A.set(0.)
         self.petsc_poisson.formRHS(self.J, self.Pb)
+        self.poisson_nullspace.remove(self.Pb)
         self.poisson_ksp.solve(self.Pb, self.A)
         
         # solve for consistent initial psi
 #         self.P.set(0.)
         self.petsc_poisson.formRHS(self.O, self.Pb)
+        self.poisson_nullspace.remove(self.Pb)
         self.poisson_ksp.solve(self.Pb, self.P)
         
         # copy initial data vectors to x
