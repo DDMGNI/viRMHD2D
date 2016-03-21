@@ -469,12 +469,15 @@ class petscMHD2D(object):
     
     def run(self):
         
-#         alpha = 1.5
-        alpha = 1.1
+        run_time = time.time()
+        
+        alpha = 1.5 # 64x64
+#         alpha = 1.1  # 128x128
+#         alpha = 1.5  # 256x256
         gamma = 0.9
-        ksp_max = 1E-1
-#         ksp_max = 1E-3
-                    
+#         ksp_max = 1E-1  # 64x64, 128x128
+        ksp_max = 1E-3 # 256x256
+        
         for itime in range(1, self.nt+1):
             current_time = self.ht*itime
             
@@ -520,31 +523,22 @@ class petscMHD2D(object):
                 self.f.copy(self.b)
                 self.b.scale(-1.)
 #                 self.dy.set(0.)
-#                 self.b.copy(self.dy)
+                self.b.copy(self.dy)
 
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print(" PC solve")
-#                 
-#                 self.petsc_precon.solve(self.b, self.dy)
-                
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print("KSP solve")
-                
                 if i == 1:
                     zeta_A  = 0.
                     zeta_B  = 0.
                     zeta_C  = 0.
                     zeta_D  = 0.
-                    ksp_tol = self.cfg['solver'].as_float('petsc_ksp_rtol')
+                    ksp_tol = self.cfg['solver']['petsc_ksp_rtol']
+#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=3)
                 else:
                     zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
                     zeta_B  = np.power(ksp_tol, alpha)
                     zeta_C  = np.min([ksp_max, np.max(zeta_A, zeta_B)])
                     zeta_D  = gamma * tolerance / pred_norm
                     ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
-                
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print("  KSP tolerance: ", ksp_tol, zeta_A, zeta_B, zeta_C, zeta_D)
+#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=5)
                 
                 self.ksp.setTolerances(rtol=ksp_tol)
                 self.ksp.solve(self.b, self.dy)
