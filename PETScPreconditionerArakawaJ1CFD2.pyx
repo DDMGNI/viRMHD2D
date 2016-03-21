@@ -48,6 +48,9 @@ cdef class PETScPreconditioner(object):
         self.hx_inv = 1. / hx
         self.hy_inv = 1. / hy
         
+        self.arakawa_fac  = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
+        self.arakawa_fac2 = self.arakawa_fac**2 
+        
         # jacobi solver
         self.jacobi_max_it = 3
         
@@ -62,8 +65,6 @@ cdef class PETScPreconditioner(object):
         self.FO = self.da1.createGlobalVec()
         
         # create data and history vectors
-        self.Xd = self.da4.createGlobalVec()
-        
         self.Ad = self.da1.createGlobalVec()
         self.Jd = self.da1.createGlobalVec()
         self.Pd = self.da1.createGlobalVec()
@@ -186,6 +187,12 @@ cdef class PETScPreconditioner(object):
         self.da1.getVecArray(self.Pa)[:,:] = 0.5 * (self.da1.getVecArray(self.Pp)[:,:] + self.da1.getVecArray(self.Ph)[:,:])
         self.da1.getVecArray(self.Oa)[:,:] = 0.5 * (self.da1.getVecArray(self.Op)[:,:] + self.da1.getVecArray(self.Oh)[:,:])
         
+        self.da1.globalToLocal(self.Aa, self.localAa)
+        self.da1.globalToLocal(self.Pa, self.localPa)
+        
+        self.aa = self.da1.getVecArray(self.localAa)[...]
+        self.pa = self.da1.getVecArray(self.localPa)[...]
+        
     
     def update_function(self, Vec F):
         F.copy(self.F)
@@ -197,6 +204,16 @@ cdef class PETScPreconditioner(object):
         self.da1.getVecArray(self.FP)[:,:] = f[:,:,2]
         self.da1.getVecArray(self.FO)[:,:] = f[:,:,3]
         
+        self.da1.globalToLocal(self.FA, self.localFA)
+        self.da1.globalToLocal(self.FJ, self.localFJ)
+        self.da1.globalToLocal(self.FP, self.localFP)
+        self.da1.globalToLocal(self.FO, self.localFO)
+        
+        self.fa = self.da1.getVecArray(self.localFA)[...]
+        self.fj = self.da1.getVecArray(self.localFJ)[...]
+        self.fp = self.da1.getVecArray(self.localFP)[...]
+        self.fo = self.da1.getVecArray(self.localFO)[...]
+        
     
     @cython.wraparound(False)
     @cython.boundscheck(False)
@@ -205,30 +222,20 @@ cdef class PETScPreconditioner(object):
         self.update_function(F)
 
         cdef int i, j, stencil
-        cdef int ix, iy, jx, jy
         cdef int xs, xe, ys, ye
-        cdef double jpp, jpc, jcp
-        cdef double arakawa_fac = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
+        cdef double jpp, jpc, jcp, result
  
         (xs, xe), (ys, ye) = self.da1.getRanges()
         stencil = self.da1.getStencilWidth()
         
         
-        self.da1.globalToLocal(self.Aa, self.localAa)
-        self.da1.globalToLocal(self.Pa, self.localPa)
-        
-        self.da1.globalToLocal(self.FA, self.localFA)
-        self.da1.globalToLocal(self.FJ, self.localFJ)
-        self.da1.globalToLocal(self.FP, self.localFP)
-        self.da1.globalToLocal(self.FO, self.localFO)
+        cdef double[:,:] aa = self.aa
+        cdef double[:,:] pa = self.pa
          
-        cdef double[:,:] aa = self.da1.getVecArray(self.localAa)[...]
-        cdef double[:,:] pa = self.da1.getVecArray(self.localPa)[...]
-        
-        cdef double[:,:] fa = self.da1.getVecArray(self.localFA)[...]
-        cdef double[:,:] fj = self.da1.getVecArray(self.localFJ)[...]
-        cdef double[:,:] fp = self.da1.getVecArray(self.localFP)[...]
-        cdef double[:,:] fo = self.da1.getVecArray(self.localFO)[...]
+        cdef double[:,:] fa = self.fa
+        cdef double[:,:] fj = self.fj
+        cdef double[:,:] fp = self.fp
+        cdef double[:,:] fo = self.fo
         
         cdef double[:,:] pb = self.da1.getVecArray(self.Pb)[...]
         cdef double[:,:] qb
@@ -239,46 +246,43 @@ cdef class PETScPreconditioner(object):
         cdef double[:,:] pd
         
         
-        for i in range(xs, xe):
-            ix = i-xs+stencil
-            iy = i-xs
-              
-            for j in range(ys, ye):
-                jx = j-ys+stencil
-                jy = j-ys
+        for i in range(stencil, xe-xs+stencil):
+            for j in range(stencil, ye-ys+stencil):
                 
-                pb[iy, jy] = fo[ix, jx] - fp[ix, jx]
+                result = fo[i, j] - fp[i, j]
                 
-                jpp = (pa[ix+1, jx  ] - pa[ix-1, jx  ]) * (fp[ix,   jx+1] - fp[ix,   jx-1]) \
-                    - (pa[ix,   jx+1] - pa[ix,   jx-1]) * (fp[ix+1, jx  ] - fp[ix-1, jx  ])
+                jpp = (pa[i+1, j  ] - pa[i-1, j  ]) * (fp[i,   j+1] - fp[i,   j-1]) \
+                    - (pa[i,   j+1] - pa[i,   j-1]) * (fp[i+1, j  ] - fp[i-1, j  ])
                  
-                jpc = pa[ix+1, jx  ] * (fp[ix+1, jx+1] - fp[ix+1, jx-1]) \
-                    - pa[ix-1, jx  ] * (fp[ix-1, jx+1] - fp[ix-1, jx-1]) \
-                    - pa[ix,   jx+1] * (fp[ix+1, jx+1] - fp[ix-1, jx+1]) \
-                    + pa[ix,   jx-1] * (fp[ix+1, jx-1] - fp[ix-1, jx-1])
+                jpc = pa[i+1, j  ] * (fp[i+1, j+1] - fp[i+1, j-1]) \
+                    - pa[i-1, j  ] * (fp[i-1, j+1] - fp[i-1, j-1]) \
+                    - pa[i,   j+1] * (fp[i+1, j+1] - fp[i-1, j+1]) \
+                    + pa[i,   j-1] * (fp[i+1, j-1] - fp[i-1, j-1])
                  
-                jcp = pa[ix+1, jx+1] * (fp[ix,   jx+1] - fp[ix+1, jx  ]) \
-                    - pa[ix-1, jx-1] * (fp[ix-1, jx  ] - fp[ix,   jx-1]) \
-                    - pa[ix-1, jx+1] * (fp[ix,   jx+1] - fp[ix-1, jx  ]) \
-                    + pa[ix+1, jx-1] * (fp[ix+1, jx  ] - fp[ix,   jx-1])
+                jcp = pa[i+1, j+1] * (fp[i,   j+1] - fp[i+1, j  ]) \
+                    - pa[i-1, j-1] * (fp[i-1, j  ] - fp[i,   j-1]) \
+                    - pa[i-1, j+1] * (fp[i,   j+1] - fp[i-1, j  ]) \
+                    + pa[i+1, j-1] * (fp[i+1, j  ] - fp[i,   j-1])
                  
-                pb[iy, jy] += arakawa_fac * (jpp + jpc + jcp)
+                result += self.arakawa_fac * (jpp + jpc + jcp)
          
                  
-                jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (fj[ix,   jx+1] - fj[ix,   jx-1]) \
-                    - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (fj[ix+1, jx  ] - fj[ix-1, jx  ])
+                jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (fj[i,   j+1] - fj[i,   j-1]) \
+                    - (aa[i,   j+1] - aa[i,   j-1]) * (fj[i+1, j  ] - fj[i-1, j  ])
                  
-                jpc = aa[ix+1, jx  ] * (fj[ix+1, jx+1] - fj[ix+1, jx-1]) \
-                    - aa[ix-1, jx  ] * (fj[ix-1, jx+1] - fj[ix-1, jx-1]) \
-                    - aa[ix,   jx+1] * (fj[ix+1, jx+1] - fj[ix-1, jx+1]) \
-                    + aa[ix,   jx-1] * (fj[ix+1, jx-1] - fj[ix-1, jx-1])
+                jpc = aa[i+1, j  ] * (fj[i+1, j+1] - fj[i+1, j-1]) \
+                    - aa[i-1, j  ] * (fj[i-1, j+1] - fj[i-1, j-1]) \
+                    - aa[i,   j+1] * (fj[i+1, j+1] - fj[i-1, j+1]) \
+                    + aa[i,   j-1] * (fj[i+1, j-1] - fj[i-1, j-1])
                  
-                jcp = aa[ix+1, jx+1] * (fj[ix,   jx+1] - fj[ix+1, jx  ]) \
-                    - aa[ix-1, jx-1] * (fj[ix-1, jx  ] - fj[ix,   jx-1]) \
-                    - aa[ix-1, jx+1] * (fj[ix,   jx+1] - fj[ix-1, jx  ]) \
-                    + aa[ix+1, jx-1] * (fj[ix+1, jx  ] - fj[ix,   jx-1])
+                jcp = aa[i+1, j+1] * (fj[i,   j+1] - fj[i+1, j  ]) \
+                    - aa[i-1, j-1] * (fj[i-1, j  ] - fj[i,   j-1]) \
+                    - aa[i-1, j+1] * (fj[i,   j+1] - fj[i-1, j  ]) \
+                    + aa[i+1, j-1] * (fj[i+1, j  ] - fj[i,   j-1])
                  
-                pb[iy, jy] -= arakawa_fac * (jpp + jpc + jcp)
+                result -= self.arakawa_fac * (jpp + jpc + jcp)
+                
+                pb[i-stencil, j-stencil] = result
                         
         
 #         self.L.set(0.)
@@ -304,92 +308,84 @@ cdef class PETScPreconditioner(object):
             else:
                 t = self.da1.getVecArray(self.T)[...]
                 
-                for i in range(xs, xe):
-                    ix = i-xs+stencil
-                    iy = i-xs
-                      
-                    for j in range(ys, ye):
-                        jx = j-ys+stencil
-                        jy = j-ys
-                        
-                        jpp = (pa[ix+1, jx  ] - pa[ix-1, jx  ]) * (pd[ix,   jx+1] - pd[ix,   jx-1]) \
-                            - (pa[ix,   jx+1] - pa[ix,   jx-1]) * (pd[ix+1, jx  ] - pd[ix-1, jx  ])
+                for i in range(stencil, xe-xs+stencil):
+                    for j in range(stencil, ye-ys+stencil):
+                        jpp = (pa[i+1, j  ] - pa[i-1, j  ]) * (pd[i,   j+1] - pd[i,   j-1]) \
+                            - (pa[i,   j+1] - pa[i,   j-1]) * (pd[i+1, j  ] - pd[i-1, j  ])
                          
-                        jpc = pa[ix+1, jx  ] * (pd[ix+1, jx+1] - pd[ix+1, jx-1]) \
-                            - pa[ix-1, jx  ] * (pd[ix-1, jx+1] - pd[ix-1, jx-1]) \
-                            - pa[ix,   jx+1] * (pd[ix+1, jx+1] - pd[ix-1, jx+1]) \
-                            + pa[ix,   jx-1] * (pd[ix+1, jx-1] - pd[ix-1, jx-1])
+                        jpc = pa[i+1, j  ] * (pd[i+1, j+1] - pd[i+1, j-1]) \
+                            - pa[i-1, j  ] * (pd[i-1, j+1] - pd[i-1, j-1]) \
+                            - pa[i,   j+1] * (pd[i+1, j+1] - pd[i-1, j+1]) \
+                            + pa[i,   j-1] * (pd[i+1, j-1] - pd[i-1, j-1])
                          
-                        jcp = pa[ix+1, jx+1] * (pd[ix,   jx+1] - pd[ix+1, jx  ]) \
-                            - pa[ix-1, jx-1] * (pd[ix-1, jx  ] - pd[ix,   jx-1]) \
-                            - pa[ix-1, jx+1] * (pd[ix,   jx+1] - pd[ix-1, jx  ]) \
-                            + pa[ix+1, jx-1] * (pd[ix+1, jx  ] - pd[ix,   jx-1])
+                        jcp = pa[i+1, j+1] * (pd[i,   j+1] - pd[i+1, j  ]) \
+                            - pa[i-1, j-1] * (pd[i-1, j  ] - pd[i,   j-1]) \
+                            - pa[i-1, j+1] * (pd[i,   j+1] - pd[i-1, j  ]) \
+                            + pa[i+1, j-1] * (pd[i+1, j  ] - pd[i,   j-1])
                          
-                        t[iy, jy] = (jpp + jpc + jcp)
+                        t[i-stencil, j-stencil] = (jpp + jpc + jcp)
             
             
             self.da1.globalToLocal(self.T, self.localT)
             t  = self.da1.getVecArray(self.localT)[...]
             qb = self.da1.getVecArray(self.Qb)[...]
          
-            for i in range(xs, xe):
-                ix = i-xs+stencil
-                iy = i-xs
-                  
-                for j in range(ys, ye):
-                    jx = j-ys+stencil
-                    jy = j-ys
+            for i in range(stencil, xe-xs+stencil):
+                for j in range(stencil, ye-ys+stencil):
                     
-                    qb[iy, jy] = fa[ix, jx]
+                    result = fa[i, j]
                     
-                    jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (l[ix,   jx+1] - l[ix,   jx-1]) \
-                        - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (l[ix+1, jx  ] - l[ix-1, jx  ])
+                    jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (l[i,   j+1] - l[i,   j-1]) \
+                        - (aa[i,   j+1] - aa[i,   j-1]) * (l[i+1, j  ] - l[i-1, j  ])
                      
-                    jpc = aa[ix+1, jx  ] * (l[ix+1, jx+1] - l[ix+1, jx-1]) \
-                        - aa[ix-1, jx  ] * (l[ix-1, jx+1] - l[ix-1, jx-1]) \
-                        - aa[ix,   jx+1] * (l[ix+1, jx+1] - l[ix-1, jx+1]) \
-                        + aa[ix,   jx-1] * (l[ix+1, jx-1] - l[ix-1, jx-1])
+                    jpc = aa[i+1, j  ] * (l[i+1, j+1] - l[i+1, j-1]) \
+                        - aa[i-1, j  ] * (l[i-1, j+1] - l[i-1, j-1]) \
+                        - aa[i,   j+1] * (l[i+1, j+1] - l[i-1, j+1]) \
+                        + aa[i,   j-1] * (l[i+1, j-1] - l[i-1, j-1])
                      
-                    jcp = aa[ix+1, jx+1] * (l[ix,   jx+1] - l[ix+1, jx  ]) \
-                        - aa[ix-1, jx-1] * (l[ix-1, jx  ] - l[ix,   jx-1]) \
-                        - aa[ix-1, jx+1] * (l[ix,   jx+1] - l[ix-1, jx  ]) \
-                        + aa[ix+1, jx-1] * (l[ix+1, jx  ] - l[ix,   jx-1])
+                    jcp = aa[i+1, j+1] * (l[i,   j+1] - l[i+1, j  ]) \
+                        - aa[i-1, j-1] * (l[i-1, j  ] - l[i,   j-1]) \
+                        - aa[i-1, j+1] * (l[i,   j+1] - l[i-1, j  ]) \
+                        + aa[i+1, j-1] * (l[i+1, j  ] - l[i,   j-1])
                      
-                    qb[iy, jy] += arakawa_fac * (jpp + jpc + jcp)
+                    result += self.arakawa_fac * (jpp + jpc + jcp)
                     
                     
-                    jpp = (pa[ix+1, jx  ] - pa[ix-1, jx  ]) * (ad[ix,   jx+1] - ad[ix,   jx-1]) \
-                        - (pa[ix,   jx+1] - pa[ix,   jx-1]) * (ad[ix+1, jx  ] - ad[ix-1, jx  ])
+                    jpp = (pa[i+1, j  ] - pa[i-1, j  ]) * (ad[i,   j+1] - ad[i,   j-1]) \
+                        - (pa[i,   j+1] - pa[i,   j-1]) * (ad[i+1, j  ] - ad[i-1, j  ])
                      
-                    jpc = pa[ix+1, jx  ] * (ad[ix+1, jx+1] - ad[ix+1, jx-1]) \
-                        - pa[ix-1, jx  ] * (ad[ix-1, jx+1] - ad[ix-1, jx-1]) \
-                        - pa[ix,   jx+1] * (ad[ix+1, jx+1] - ad[ix-1, jx+1]) \
-                        + pa[ix,   jx-1] * (ad[ix+1, jx-1] - ad[ix-1, jx-1])
+                    jpc = pa[i+1, j  ] * (ad[i+1, j+1] - ad[i+1, j-1]) \
+                        - pa[i-1, j  ] * (ad[i-1, j+1] - ad[i-1, j-1]) \
+                        - pa[i,   j+1] * (ad[i+1, j+1] - ad[i-1, j+1]) \
+                        + pa[i,   j-1] * (ad[i+1, j-1] - ad[i-1, j-1])
                      
-                    jcp = pa[ix+1, jx+1] * (ad[ix,   jx+1] - ad[ix+1, jx  ]) \
-                        - pa[ix-1, jx-1] * (ad[ix-1, jx  ] - ad[ix,   jx-1]) \
-                        - pa[ix-1, jx+1] * (ad[ix,   jx+1] - ad[ix-1, jx  ]) \
-                        + pa[ix+1, jx-1] * (ad[ix+1, jx  ] - ad[ix,   jx-1])
+                    jcp = pa[i+1, j+1] * (ad[i,   j+1] - ad[i+1, j  ]) \
+                        - pa[i-1, j-1] * (ad[i-1, j  ] - ad[i,   j-1]) \
+                        - pa[i-1, j+1] * (ad[i,   j+1] - ad[i-1, j  ]) \
+                        + pa[i+1, j-1] * (ad[i+1, j  ] - ad[i,   j-1])
                      
-                    qb[iy, jy] -= arakawa_fac * (jpp + jpc + jcp)
+                    result -= self.arakawa_fac * (jpp + jpc + jcp)
                     
              
-                    jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (t[ix,   jx+1] - t[ix,   jx-1]) \
-                        - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (t[ix+1, jx  ] - t[ix-1, jx  ])
+                    jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (t[i,   j+1] - t[i,   j-1]) \
+                        - (aa[i,   j+1] - aa[i,   j-1]) * (t[i+1, j  ] - t[i-1, j  ])
                      
-                    jpc = aa[ix+1, jx  ] * (t[ix+1, jx+1] - t[ix+1, jx-1]) \
-                        - aa[ix-1, jx  ] * (t[ix-1, jx+1] - t[ix-1, jx-1]) \
-                        - aa[ix,   jx+1] * (t[ix+1, jx+1] - t[ix-1, jx+1]) \
-                        + aa[ix,   jx-1] * (t[ix+1, jx-1] - t[ix-1, jx-1])
+                    jpc = aa[i+1, j  ] * (t[i+1, j+1] - t[i+1, j-1]) \
+                        - aa[i-1, j  ] * (t[i-1, j+1] - t[i-1, j-1]) \
+                        - aa[i,   j+1] * (t[i+1, j+1] - t[i-1, j+1]) \
+                        + aa[i,   j-1] * (t[i+1, j-1] - t[i-1, j-1])
                      
-                    jcp = aa[ix+1, jx+1] * (t[ix,   jx+1] - t[ix+1, jx  ]) \
-                        - aa[ix-1, jx-1] * (t[ix-1, jx  ] - t[ix,   jx-1]) \
-                        - aa[ix-1, jx+1] * (t[ix,   jx+1] - t[ix-1, jx  ]) \
-                        + aa[ix+1, jx-1] * (t[ix+1, jx  ] - t[ix,   jx-1])
+                    jcp = aa[i+1, j+1] * (t[i,   j+1] - t[i+1, j  ]) \
+                        - aa[i-1, j-1] * (t[i-1, j  ] - t[i,   j-1]) \
+                        - aa[i-1, j+1] * (t[i,   j+1] - t[i-1, j  ]) \
+                        + aa[i+1, j-1] * (t[i+1, j  ] - t[i,   j-1])
                      
-                    qb[iy, jy] -= arakawa_fac * arakawa_fac * (jpp + jpc + jcp)
+                    result -= self.arakawa_fac2 * (jpp + jpc + jcp)
                     
+                    qb[i-stencil, j-stencil] = result
                     
+            
+#             self.Ad.set(0.)
             self.parabol_ksp.solve(self.Qb, self.Ad)
             
             
@@ -397,30 +393,25 @@ cdef class PETScPreconditioner(object):
             ad = self.da1.getVecArray(self.localAd)[...]
             pd = self.da1.getVecArray(self.Pd)[...]
             
-            for i in range(xs, xe):
-                ix = i-xs+stencil
-                iy = i-xs
-                
-                for j in range(ys, ye):
-                    jx = j-ys+stencil
-                    jy = j-ys
+            for i in range(stencil, xe-xs+stencil):
+                for j in range(stencil, ye-ys+stencil):
                     
-                    pd[iy, jy] = l[ix, jx] - arakawa_fac * t[ix, jx]
-                    
-                    jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (ad[ix,   jx+1] - ad[ix,   jx-1]) \
-                        - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (ad[ix+1, jx  ] - ad[ix-1, jx  ])
+                    jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (ad[i,   j+1] - ad[i,   j-1]) \
+                        - (aa[i,   j+1] - aa[i,   j-1]) * (ad[i+1, j  ] - ad[i-1, j  ])
                      
-                    jpc = aa[ix+1, jx  ] * (ad[ix+1, jx+1] - ad[ix+1, jx-1]) \
-                        - aa[ix-1, jx  ] * (ad[ix-1, jx+1] - ad[ix-1, jx-1]) \
-                        - aa[ix,   jx+1] * (ad[ix+1, jx+1] - ad[ix-1, jx+1]) \
-                        + aa[ix,   jx-1] * (ad[ix+1, jx-1] - ad[ix-1, jx-1])
+                    jpc = aa[i+1, j  ] * (ad[i+1, j+1] - ad[i+1, j-1]) \
+                        - aa[i-1, j  ] * (ad[i-1, j+1] - ad[i-1, j-1]) \
+                        - aa[i,   j+1] * (ad[i+1, j+1] - ad[i-1, j+1]) \
+                        + aa[i,   j-1] * (ad[i+1, j-1] - ad[i-1, j-1])
                      
-                    jcp = aa[ix+1, jx+1] * (ad[ix,   jx+1] - ad[ix+1, jx  ]) \
-                        - aa[ix-1, jx-1] * (ad[ix-1, jx  ] - ad[ix,   jx-1]) \
-                        - aa[ix-1, jx+1] * (ad[ix,   jx+1] - ad[ix-1, jx  ]) \
-                        + aa[ix+1, jx-1] * (ad[ix+1, jx  ] - ad[ix,   jx-1])
+                    jcp = aa[i+1, j+1] * (ad[i,   j+1] - ad[i+1, j  ]) \
+                        - aa[i-1, j-1] * (ad[i-1, j  ] - ad[i,   j-1]) \
+                        - aa[i-1, j+1] * (ad[i,   j+1] - ad[i-1, j  ]) \
+                        + aa[i+1, j-1] * (ad[i+1, j  ] - ad[i,   j-1])
                      
-                    pd[iy, jy] += arakawa_fac * (jpp + jpc + jcp)
+                    pd[i-stencil, j-stencil] = l[i, j] \
+                               - self.arakawa_fac * t[i, j] \
+                               + self.arakawa_fac * (jpp + jpc + jcp)
                     
             self.da1.globalToLocal(self.Pd, self.localPd)
             pd = self.da1.getVecArray(self.localPd)[...]
@@ -428,40 +419,35 @@ cdef class PETScPreconditioner(object):
         
         cdef double[:,:,:] y = self.da4.getVecArray(Y)[...]
         
-        for i in range(xs, xe):
-            ix = i-xs+stencil
-            iy = i-xs
-              
-            for j in range(ys, ye):
-                jx = j-ys+stencil
-                jy = j-ys
+        for i in range(stencil, xe-xs+stencil):
+            for j in range(stencil, ye-ys+stencil):
                 
-                y[iy, jy, 0] = ad[ix, jx]
+                y[i-stencil, j-stencil, 0] = ad[i, j]
                 
-                y[iy, jy, 1] = fj[ix, jx] \
+                y[i-stencil, j-stencil, 1] = fj[i, j] \
                              + ( \
-                                   - 1. * ad[ix-1, jx] \
-                                   + 2. * ad[ix,   jx] \
-                                   - 1. * ad[ix+1, jx] \
+                                   - 1. * ad[i-1, j] \
+                                   + 2. * ad[i,   j] \
+                                   - 1. * ad[i+1, j] \
                                ) * self.hx_inv**2 \
                              + ( \
-                                   - 1. * ad[ix, jx-1] \
-                                   + 2. * ad[ix, jx  ] \
-                                   - 1. * ad[ix, jx+1] \
+                                   - 1. * ad[i, j-1] \
+                                   + 2. * ad[i, j  ] \
+                                   - 1. * ad[i, j+1] \
                                ) * self.hy_inv**2
         
-                y[iy, jy, 2] = pd[ix, jx]
+                y[i-stencil, j-stencil, 2] = pd[i, j]
                 
-                y[iy, jy, 3] = fp[ix, jx] \
+                y[i-stencil, j-stencil, 3] = fp[i, j] \
                              + ( \
-                                   - 1. * pd[ix-1, jx] \
-                                   + 2. * pd[ix,   jx] \
-                                   - 1. * pd[ix+1, jx] \
+                                   - 1. * pd[i-1, j] \
+                                   + 2. * pd[i,   j] \
+                                   - 1. * pd[i+1, j] \
                                ) * self.hx_inv**2 \
                              + ( \
-                                   - 1. * pd[ix, jx-1] \
-                                   + 2. * pd[ix, jx  ] \
-                                   - 1. * pd[ix, jx+1] \
+                                   - 1. * pd[i, j-1] \
+                                   + 2. * pd[i, j  ] \
+                                   - 1. * pd[i, j+1] \
                                ) * self.hy_inv**2
         
     
@@ -473,70 +459,56 @@ cdef class PETScPreconditioner(object):
     @cython.boundscheck(False)
     def matrix_mult(self, Vec Q, Vec Y):
         cdef int i, j, stencil
-        cdef int ix, iy, jx, jy
         cdef int xs, xe, ys, ye
         cdef double jpp, jpc, jcp
-        cdef double arakawa_fac = 0.5 * self.ht * self.hx_inv * self.hy_inv / 12.
         
         (xs, xe), (ys, ye) = self.da1.getRanges()
         stencil = self.da1.getStencilWidth()
          
-        self.da1.globalToLocal(Q,       self.localQ)
-        self.da1.globalToLocal(self.Aa, self.localAa)
+        self.da1.globalToLocal(Q, self.localQ)
          
-        cdef double[:,:] q  = self.da1.getVecArray(self.localQ )[...]
-        cdef double[:,:] aa = self.da1.getVecArray(self.localAa)[...]
+        cdef double[:,:] q  = self.da1.getVecArray(self.localQ)[...]
         cdef double[:,:] t  = self.da1.getVecArray(self.T)[...]
         cdef double[:,:] y  = self.da1.getVecArray(Y)[...]
          
+        cdef double[:,:] aa = self.aa
+        
      
-        for i in range(xs, xe):
-            ix = i-xs+stencil
-            iy = i-xs
-            
-            for j in range(ys, ye):
-                jx = j-ys+stencil
-                jy = j-ys
+        for i in range(stencil, xe-xs+stencil):
+            for j in range(stencil, ye-ys+stencil):
+                jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (q[i,   j+1] - q[i,   j-1]) \
+                    - (aa[i,   j+1] - aa[i,   j-1]) * (q[i+1, j  ] - q[i-1, j  ])
                 
-                jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (q[ix,   jx+1] - q[ix,   jx-1]) \
-                    - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (q[ix+1, jx  ] - q[ix-1, jx  ])
+                jpc = aa[i+1, j  ] * (q[i+1, j+1] - q[i+1, j-1]) \
+                    - aa[i-1, j  ] * (q[i-1, j+1] - q[i-1, j-1]) \
+                    - aa[i,   j+1] * (q[i+1, j+1] - q[i-1, j+1]) \
+                    + aa[i,   j-1] * (q[i+1, j-1] - q[i-1, j-1])
                 
-                jpc = aa[ix+1, jx  ] * (q[ix+1, jx+1] - q[ix+1, jx-1]) \
-                    - aa[ix-1, jx  ] * (q[ix-1, jx+1] - q[ix-1, jx-1]) \
-                    - aa[ix,   jx+1] * (q[ix+1, jx+1] - q[ix-1, jx+1]) \
-                    + aa[ix,   jx-1] * (q[ix+1, jx-1] - q[ix-1, jx-1])
+                jcp = aa[i+1, j+1] * (q[i,   j+1] - q[i+1, j  ]) \
+                    - aa[i-1, j-1] * (q[i-1, j  ] - q[i,   j-1]) \
+                    - aa[i-1, j+1] * (q[i,   j+1] - q[i-1, j  ]) \
+                    + aa[i+1, j-1] * (q[i+1, j  ] - q[i,   j-1])
                 
-                jcp = aa[ix+1, jx+1] * (q[ix,   jx+1] - q[ix+1, jx  ]) \
-                    - aa[ix-1, jx-1] * (q[ix-1, jx  ] - q[ix,   jx-1]) \
-                    - aa[ix-1, jx+1] * (q[ix,   jx+1] - q[ix-1, jx  ]) \
-                    + aa[ix+1, jx-1] * (q[ix+1, jx  ] - q[ix,   jx-1])
-                
-                t[iy, jy] = arakawa_fac * (jpp + jpc + jcp)
+                t[i-stencil, j-stencil] = (jpp + jpc + jcp)
         
         
         self.da1.globalToLocal(self.T, self.localT)
         t  = self.da1.getVecArray(self.localT)[...]
         
         
-        for i in range(xs, xe):
-            ix = i-xs+stencil
-            iy = i-xs
-            
-            for j in range(ys, ye):
-                jx = j-ys+stencil
-                jy = j-ys
+        for i in range(stencil, xe-xs+stencil):
+            for j in range(stencil, ye-ys+stencil):
+                jpp = (aa[i+1, j  ] - aa[i-1, j  ]) * (t[i,   j+1] - t[i,   j-1]) \
+                    - (aa[i,   j+1] - aa[i,   j-1]) * (t[i+1, j  ] - t[i-1, j  ])
                 
-                jpp = (aa[ix+1, jx  ] - aa[ix-1, jx  ]) * (t[ix,   jx+1] - t[ix,   jx-1]) \
-                    - (aa[ix,   jx+1] - aa[ix,   jx-1]) * (t[ix+1, jx  ] - t[ix-1, jx  ])
+                jpc = aa[i+1, j  ] * (t[i+1, j+1] - t[i+1, j-1]) \
+                    - aa[i-1, j  ] * (t[i-1, j+1] - t[i-1, j-1]) \
+                    - aa[i,   j+1] * (t[i+1, j+1] - t[i-1, j+1]) \
+                    + aa[i,   j-1] * (t[i+1, j-1] - t[i-1, j-1])
                 
-                jpc = aa[ix+1, jx  ] * (t[ix+1, jx+1] - t[ix+1, jx-1]) \
-                    - aa[ix-1, jx  ] * (t[ix-1, jx+1] - t[ix-1, jx-1]) \
-                    - aa[ix,   jx+1] * (t[ix+1, jx+1] - t[ix-1, jx+1]) \
-                    + aa[ix,   jx-1] * (t[ix+1, jx-1] - t[ix-1, jx-1])
+                jcp = aa[i+1, j+1] * (t[i,   j+1] - t[i+1, j  ]) \
+                    - aa[i-1, j-1] * (t[i-1, j  ] - t[i,   j-1]) \
+                    - aa[i-1, j+1] * (t[i,   j+1] - t[i-1, j  ]) \
+                    + aa[i+1, j-1] * (t[i+1, j  ] - t[i,   j-1])
                 
-                jcp = aa[ix+1, jx+1] * (t[ix,   jx+1] - t[ix+1, jx  ]) \
-                    - aa[ix-1, jx-1] * (t[ix-1, jx  ] - t[ix,   jx-1]) \
-                    - aa[ix-1, jx+1] * (t[ix,   jx+1] - t[ix-1, jx  ]) \
-                    + aa[ix+1, jx-1] * (t[ix+1, jx  ] - t[ix,   jx-1])
-                
-                y[iy, jy] = q[ix, jx] - arakawa_fac * (jpp + jpc + jcp)
+                y[i-stencil, j-stencil] = q[i, j] - self.arakawa_fac2 * (jpp + jpc + jcp)

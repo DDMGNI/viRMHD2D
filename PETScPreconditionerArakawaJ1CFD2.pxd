@@ -25,11 +25,13 @@ cdef class PETScPreconditioner(object):
     cdef double hx_inv
     cdef double hy_inv
     
+    cdef double arakawa_fac
+    cdef double arakawa_fac2
+    
     cdef int jacobi_max_it
+    
     cdef object da1
     cdef object da4
-    
-    cdef Vec Xd
     
     cdef Vec Ad
     cdef Vec Jd
@@ -87,4 +89,13 @@ cdef class PETScPreconditioner(object):
     
     cdef KSP poisson_ksp
     cdef KSP parabol_ksp
+    
+    cdef double[:,:] aa
+    cdef double[:,:] pa
+    
+    cdef double[:,:] fa
+    cdef double[:,:] fj
+    cdef double[:,:] fp
+    cdef double[:,:] fo
+    
     
