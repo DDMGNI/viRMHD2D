@@ -33,20 +33,20 @@ cdef class PETScSolver(object):
     cdef Vec Xp
     cdef Vec Yd
     
-    cdef Vec Ap
-    cdef Vec Jp
-    cdef Vec Pp
-    cdef Vec Op
+    cdef public Vec Ap
+    cdef public Vec Jp
+    cdef public Vec Pp
+    cdef public Vec Op
     
-    cdef Vec Ah
-    cdef Vec Jh
-    cdef Vec Ph
-    cdef Vec Oh
+    cdef public Vec Ah
+    cdef public Vec Jh
+    cdef public Vec Ph
+    cdef public Vec Oh
     
-    cdef Vec Aa
-    cdef Vec Ja
-    cdef Vec Pa
-    cdef Vec Oa
+    cdef public Vec Aa
+    cdef public Vec Ja
+    cdef public Vec Pa
+    cdef public Vec Oa
     
     cdef Vec YA
     cdef Vec YJ
