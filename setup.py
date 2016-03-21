@@ -74,6 +74,7 @@ extension_list = ["PETScDerivatives",
                   "PETScNonlinearSolverArakawaJ1CFD2DOF2",
                   "PETScPreconditionerArakawaJ1CFD2",
                   "PETScPreconditionerArakawaJ1CFD2Vec",
+                  "PETScPreconditionerArakawaJ1CFD2DOF2Vec",
                   "PETScOhmsLawArakawaJ1",
                   "PETScPoissonCFD2",
                   "PETScVorticityArakawaJ1"]
