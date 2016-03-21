@@ -81,7 +81,7 @@ class PlotEnergy(object):
             
         
         # set up tick formatter
-        majorFormatter = ScalarFormatter(useOffset=False)
+        majorFormatter = ScalarFormatter(useOffset=False, useMathText=True)
         ## -> limit to 1.1f precision
         majorFormatter.set_powerlimits((-1,+1))
         majorFormatter.set_scientific(True)
@@ -92,7 +92,7 @@ class PlotEnergy(object):
         
         # set up plot margins
         plt.subplots_adjust(hspace=0.25, wspace=0.2)
-        plt.subplots_adjust(left=0.1, right=0.95, top=0.93, bottom=0.25)
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.25)
         
         axesE = plt.subplot(1,1,1)
         axesE.plot(self.diagnostics.tGrid[0:ntMax+1:self.nPlot], self.energy[0:ntMax+1:self.nPlot])
@@ -126,7 +126,7 @@ class PlotEnergy(object):
         
         # set up plot margins
         plt.subplots_adjust(hspace=0.25, wspace=0.2)
-        plt.subplots_adjust(left=0.1, right=0.95, top=0.93, bottom=0.25)
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.25)
         
         axesL = plt.subplot(1,1,1)
         axesL.plot(self.diagnostics.tGrid[0:ntMax+1:self.nPlot], self.psi_l2[0:ntMax+1:self.nPlot])
@@ -161,7 +161,7 @@ class PlotEnergy(object):
         
         # set up plot margins
         plt.subplots_adjust(hspace=0.25, wspace=0.2)
-        plt.subplots_adjust(left=0.1, right=0.95, top=0.93, bottom=0.25)
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.25)
         
         axesH = plt.subplot(1,1,1)
         axesH.plot(self.diagnostics.tGrid[0:ntMax+1:self.nPlot], self.c_helicity[0:ntMax+1:self.nPlot])
@@ -197,7 +197,7 @@ class PlotEnergy(object):
         
         # set up plot margins
         plt.subplots_adjust(hspace=0.25, wspace=0.2)
-        plt.subplots_adjust(left=0.1, right=0.95, top=0.93, bottom=0.25)
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.25)
         
         axesM = plt.subplot(1,1,1)
         axesM.plot(self.diagnostics.tGrid[0:ntMax+1:self.nPlot], self.m_helicity[0:ntMax+1:self.nPlot])
