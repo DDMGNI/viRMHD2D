@@ -227,7 +227,8 @@ class petscMHD2D(object):
         self.f  = self.da4.createGlobalVec()
         self.Pb = self.da1.createGlobalVec()
         self.FA = self.da1.createGlobalVec()
-        self.FO = self.da1.createGlobalVec()
+        self.FO1= self.da1.createGlobalVec()
+        self.FO2= self.da1.createGlobalVec()
         
         #  nullspace vectors
         self.x0 = self.da4.createGlobalVec()
