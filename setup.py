@@ -71,6 +71,7 @@ if isdir('/opt/local/lib/openmpi-gcc5'):
 
 extension_list = ["PETScDerivatives",
                   "PETScNonlinearSolverArakawaJ1CFD2",
+                  "PETScNonlinearSolverArakawaJ1CFD2DOF2",
                   "PETScPreconditionerArakawaJ1CFD2",
                   "PETScPreconditionerArakawaJ1CFD2Vec",
                   "PETScOhmsLawArakawaJ1",
