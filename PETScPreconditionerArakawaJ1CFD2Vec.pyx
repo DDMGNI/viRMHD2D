@@ -2,7 +2,7 @@
 '''
 Created on Apr 10, 2012
 
-@author: mkraus
+@author: Michael Kraus (michael.kraus@ipp.mpg.de)
 '''
 from sympy.physics.units import dl
 
