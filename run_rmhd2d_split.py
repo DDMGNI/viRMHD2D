@@ -1,0 +1,294 @@
+'''
+Created on Mar 23, 2012
+
+@author: Michael Kraus (michael.kraus@ipp.mpg.de)
+'''
+
+from run_rmhd2d import rmhd2d
+
+import numpy as np
+from numpy import abs
+
+import argparse, sys, time
+import pstats, cProfile
+
+from config import Config
+
+from petsc4py import PETSc
+
+from PETScDerivatives                        import PETScDerivatives
+from PETScPoissonCFD2                        import PETScPoisson
+from PETScNonlinearSolverArakawaJ1CFD2       import PETScSolver
+from PETScNonlinearSolverArakawaJ1CFD2DOF2   import PETScSolverDOF2
+from PETScPreconditionerArakawaJ1CFD2DOF2Vec import PETScPreconditioner
+
+
+solver_package = 'superlu_dist'
+# solver_package = 'mumps'
+# solver_package = 'pastix'
+
+
+class rmhd2d_split(rmhd2d):
+    '''
+    PETSc/Python Reduced MHD Solver in 2D.
+    '''
+
+
+    def __init__(self, cfgfile):
+        '''
+        Constructor
+        '''
+        
+        super().__init__(cfgfile)#rmhd2d_ppc, self
+        
+        OptDB = PETSc.Options()
+        
+#         OptDB.setValue('ksp_monitor',  '')
+#         OptDB.setValue('snes_monitor', '')
+#         
+#         OptDB.setValue('log_info',    '')
+#         OptDB.setValue('log_summary', '')
+
+        OptDB.setValue('ksp_rtol',   self.cfg['solver']['petsc_ksp_rtol'])
+        OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
+        OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
+#         OptDB.setValue('ksp_initial_guess_nonzero', 1)
+        
+        OptDB.setValue('pc_type', 'hypre')
+        OptDB.setValue('pc_hypre_type', 'boomeramg')
+        OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
+#         OptDB.setValue('pc_hypre_boomeramg_max_levels', 6)
+#         OptDB.setValue('pc_hypre_boomeramg_tol',  1e-7)
+        
+        
+        # create DA (dof = 2 for A, P)
+        self.da2 = PETSc.DA().create(dim=2, dof=2,
+                                     sizes=[self.nx, self.ny],
+                                     proc_sizes=[PETSc.DECIDE, PETSc.DECIDE],
+                                     boundary_type=('periodic', 'periodic'),
+                                     stencil_width=1,
+                                     stencil_type='box')
+        
+        # create solution and RHS vector
+        self.dx2 = self.da2.createGlobalVec()
+        self.dy2 = self.da2.createGlobalVec()
+        self.b   = self.da2.createGlobalVec()
+        
+        # create Jacobian, Function, and linear Matrix objects
+        self.petsc_precon   = PETScPreconditioner(self.da1, self.da2, self.nx, self.ny, self.ht, self.hx, self.hy)
+        self.petsc_solver2  = PETScSolverDOF2(self.da1, self.da2, self.nx, self.ny, self.ht, self.hx, self.hy, self.petsc_precon)
+        self.petsc_solver4  = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
+        
+        
+        self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
+                                         poisson_atol=self.cfg['solver']['pc_poisson_atol'],
+                                         poisson_max_it=self.cfg['solver']['pc_poisson_max_iter'],
+                                         parabol_rtol=self.cfg['solver']['pc_parabol_rtol'],
+                                         parabol_atol=self.cfg['solver']['pc_parabol_atol'],
+                                         parabol_max_it=self.cfg['solver']['pc_parabol_max_iter'],
+                                         jacobi_max_it=self.cfg['solver']['pc_jacobi_max_iter'])
+        
+        # initialise matrixfree Jacobian
+        self.Jmf = PETSc.Mat().createPython([self.b.getSizes(), self.b.getSizes()], 
+                                            context=self.petsc_solver2,
+                                            comm=PETSc.COMM_WORLD)
+        self.Jmf.setUp()
+        
+        # create linear solver
+        self.ksp = PETSc.KSP().create()
+        self.ksp.setFromOptions()
+        self.ksp.setOperators(self.Jmf)
+        self.ksp.setInitialGuessNonzero(True)
+        self.ksp.setType('fgmres')
+        self.ksp.getPC().setType('none')
+        
+        # update solution history
+        self.petsc_solver4.update_previous(self.x)
+        self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
+        
+        
+    
+    def __del__(self):
+        self.ksp.destroy()
+        self.Jmf.destroy()
+    
+    
+    def run(self):
+        
+        run_time = time.time()
+        
+        alpha = 1.5 # 64x64
+#         alpha = 1.1  # 128x128
+#         alpha = 1.5  # 256x256
+        gamma = 0.9
+#         ksp_max = 1E-1  # 64x64, 128x128
+        ksp_max = 1E-3 # 256x256
+        
+        for itime in range(1, self.nt+1):
+            current_time = self.ht*itime
+            
+            if PETSc.COMM_WORLD.getRank() == 0:
+                localtime = time.asctime( time.localtime(time.time()) )
+                print("\nit = %4d,   t = %10.4f,   %s" % (itime, current_time, localtime) )
+                print
+                self.time.setValue(0, current_time)
+            
+            # calculate initial guess
+#             self.calculate_initial_guess(initial=itime==1)
+#             self.calculate_initial_guess(initial=True)
+            
+            # update history
+            self.petsc_solver4.update_history()
+            self.petsc_solver2.update_history()
+            
+            # copy initial guess to x
+#             x_arr = self.da4.getVecArray(self.x)
+#             x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+#             x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+#             x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+#             x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
+            
+            # solve
+            i = 0
+            
+            self.petsc_solver4.update_previous(self.x)
+            self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
+            
+            self.petsc_solver4.function(self.f)
+            pred_norm = self.f.norm()
+            prev_norm = pred_norm
+            
+            tolerance = self.tolerance + self.cfg['solver']['petsc_snes_rtol'] * pred_norm 
+#             print("tolerance:", self.tolerance, self.cfg['solver']['petsc_snes_rtol'] * pred_norm, tolerance)
+            
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Nonlinear Solver Iteration %i:                           residual = %22.16E" % (i, pred_norm))
+            
+            while True:
+            
+                i+=1
+                
+                f_arr = self.da4.getVecArray(self.f)
+                b_arr = self.da2.getVecArray(self.b)
+                
+                b_arr[:,:,0] = -f_arr[:,:,0]
+                b_arr[:,:,1] = -f_arr[:,:,2]
+                
+                self.da1.getVecArray(self.FA)[...] = f_arr[:,:,0]
+                self.da1.getVecArray(self.FJ)[...] = f_arr[:,:,1]
+                self.da1.getVecArray(self.FP)[...] = f_arr[:,:,2]
+                self.da1.getVecArray(self.FO)[...] = f_arr[:,:,3]
+                
+                self.petsc_solver2.update_function(self.FA, self.FJ, self.FP, self.FO)
+                
+#                 self.dy2.set(0.)
+                self.b.copy(self.dy2)
+
+                if i == 1:
+                    zeta_A  = 0.
+                    zeta_B  = 0.
+                    zeta_C  = 0.
+                    zeta_D  = 0.
+                    ksp_tol = self.cfg['solver']['petsc_ksp_rtol']
+#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=3)
+                else:
+                    zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
+                    zeta_B  = np.power(ksp_tol, alpha)
+                    zeta_C  = np.min([ksp_max, np.max(zeta_A, zeta_B)])
+                    zeta_D  = gamma * tolerance / pred_norm
+                    ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
+#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=5)
+                
+                self.ksp.setTolerances(rtol=ksp_tol)
+                self.ksp.solve(self.b, self.dy2)
+                
+                self.petsc_precon.solve(self.dy2, self.dx2)
+
+                dx_arr = self.da4.getVecArray(self.dx2)
+
+                self.da1.getVecArray(self.Ad)[...] = dx_arr[:,:,0]
+                self.da1.getVecArray(self.Pd)[...] = dx_arr[:,:,1]
+                
+                self.derivatives.laplace_vec(self.Pd, self.Od, -1.)
+                self.derivatives.laplace_vec(self.Ad, self.Jd, -1.)
+                
+                self.Od.axpy(-1., self.FP)
+                self.Jd.axpy(-1., self.FJ)
+
+                dx_arr = self.da4.getVecArray(self.dx)
+                dx_arr[:,:,0] = self.da1.getVecArray(self.Ad)[...]
+                dx_arr[:,:,1] = self.da1.getVecArray(self.Jd)[...]
+                dx_arr[:,:,2] = self.da1.getVecArray(self.Pd)[...]
+                dx_arr[:,:,3] = self.da1.getVecArray(self.Od)[...]
+                
+                self.x.axpy(1., self.dx)
+                
+                x_arr = self.da4.getVecArray(self.x)
+                self.da1.getVecArray(self.A)[...] = x_arr[:,:,0]
+                self.da1.getVecArray(self.J)[...] = x_arr[:,:,1]
+                self.da1.getVecArray(self.P)[...] = x_arr[:,:,2]
+                self.da1.getVecArray(self.O)[...] = x_arr[:,:,3]
+                
+                self.petsc_solver4.update_previous(self.x)
+                self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
+                
+                prev_norm = pred_norm
+                self.petsc_solver4.function(self.f)
+                pred_norm = self.f.norm()
+
+                if PETSc.COMM_WORLD.getRank() == 0:
+                    print("  Nonlinear Solver Iteration %i: %5i GMRES iterations,   residual = %22.16E,   tolerance = %22.16E" % (i, self.ksp.getIterationNumber(), pred_norm, ksp_tol) )
+                
+                if abs(prev_norm - pred_norm) < self.cfg['solver']['petsc_snes_stol'] or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
+                    break
+            
+            # output some solver info
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print()
+            
+            
+            # save to hdf5 file
+            if itime % self.nsave == 0 or itime == self.nt + 1:
+                self.save_to_hdf5(itime)
+        
+        # output total time spent in run
+        run_time = time.time() - run_time
+
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("Solver runtime: %f seconds." % run_time)
+            print()
+            
+        
+    
+    
+
+    
+
+if __name__ == '__main__':
+
+    OptDB = PETSc.Options()
+ 
+#     parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
+#     parser.add_argument('-prof','--profiler', action='store_true', required=False,
+#                         help='Activate Profiler')
+#     parser.add_argument('-jac','--jacobian', action='store_true', required=False,
+#                         help='Check Jacobian')
+#     parser.add_argument('runfile', metavar='runconfig', type=str,
+#                         help='Run Configuration File')
+#     
+#     args = parser.parse_args()
+    
+    runfile = OptDB.getString('c')
+    petscvp = petscMHD2D(runfile)
+
+#     if args.profiler:
+    if OptDB.getBool('profiler', default=False):
+        cProfile.runctx("petscvp.run()", globals(), locals(), "profile.prof")
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            s = pstats.Stats("profile.prof")
+            s.strip_dirs().sort_stats("time").print_stats()
+    elif OptDB.getBool('jacobian', default=False):
+        petscvp.check_jacobian()
+    else:
+        petscvp.run()

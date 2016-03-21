@@ -132,9 +132,16 @@ class rmhd2d(object):
         self.b  = self.da4.createGlobalVec()
         self.f  = self.da4.createGlobalVec()
         self.Pb = self.da1.createGlobalVec()
+
         self.FA = self.da1.createGlobalVec()
-        self.FO1= self.da1.createGlobalVec()
-        self.FO2= self.da1.createGlobalVec()
+        self.FJ = self.da1.createGlobalVec()
+        self.FP = self.da1.createGlobalVec()
+        self.FO = self.da1.createGlobalVec()
+        
+        # create initial guess vectors
+        self.igFA = self.da1.createGlobalVec()
+        self.igFO1= self.da1.createGlobalVec()
+        self.igFO2= self.da1.createGlobalVec()
         
         #  nullspace vectors
         self.x0 = self.da4.createGlobalVec()
@@ -371,13 +378,13 @@ class rmhd2d(object):
         self.petsc_solver.Op.copy(self.O)
         
         if initial:
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
-            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.igFA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.igFO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.igFO2)
             
-            self.A.axpy(0.5*self.ht, self.FA)
-            self.O.axpy(0.5*self.ht, self.FO1)
-            self.O.axpy(0.5*self.ht, self.FO2)
+            self.A.axpy(0.5*self.ht, self.igFA)
+            self.O.axpy(0.5*self.ht, self.igFO1)
+            self.O.axpy(0.5*self.ht, self.igFO2)
             
             self.derivatives.laplace_vec(self.A, self.J, -1.)
             
@@ -386,42 +393,42 @@ class rmhd2d(object):
             self.poisson_nullspace.remove(self.Pb)
             self.poisson_ksp.solve(self.Pb, self.P)
             
-            self.derivatives.arakawa_vec(self.A, self.P, self.FA)
-            self.derivatives.arakawa_vec(self.O, self.P, self.FO1)
-            self.derivatives.arakawa_vec(self.A, self.J, self.FO2)
+            self.derivatives.arakawa_vec(self.A, self.P, self.igFA)
+            self.derivatives.arakawa_vec(self.O, self.P, self.igFO1)
+            self.derivatives.arakawa_vec(self.A, self.J, self.igFO2)
             
             self.petsc_solver.Ap.copy(self.A)
             self.petsc_solver.Op.copy(self.O)
             
-            self.A.axpy(self.ht, self.FA)
-            self.O.axpy(self.ht, self.FO1)
-            self.O.axpy(self.ht, self.FO2)
+            self.A.axpy(self.ht, self.igFA)
+            self.O.axpy(self.ht, self.igFO1)
+            self.O.axpy(self.ht, self.igFO2)
 
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
-            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.igFA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.igFO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.igFO2)
             
         else:
             self.A.set(0.)
             self.O.set(0.)
     
             self.A.axpy(self.hermite_x0, self.petsc_solver.Ah)
-            self.A.axpy(self.hermite_f0, self.FA)
+            self.A.axpy(self.hermite_f0, self.igFA)
             
             self.O.axpy(self.hermite_x0, self.petsc_solver.Oh)
-            self.O.axpy(self.hermite_f0, self.FO1)
-            self.O.axpy(self.hermite_f0, self.FO2)
+            self.O.axpy(self.hermite_f0, self.igFO1)
+            self.O.axpy(self.hermite_f0, self.igFO2)
             
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
-            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
-            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.igFA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.igFO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.igFO2)
             
             self.A.axpy(self.hermite_x1, self.petsc_solver.Ap)
-            self.A.axpy(self.hermite_f1, self.FA)
+            self.A.axpy(self.hermite_f1, self.igFA)
             
             self.O.axpy(self.hermite_x1, self.petsc_solver.Op)
-            self.O.axpy(self.hermite_f1, self.FO1)
-            self.O.axpy(self.hermite_f1, self.FO2)
+            self.O.axpy(self.hermite_f1, self.igFO1)
+            self.O.axpy(self.hermite_f1, self.igFO2)
             
             self.A.scale(self.hermite_den)
             self.O.scale(self.hermite_den)
@@ -626,6 +633,10 @@ if __name__ == '__main__':
         # physics based preconditioner
         from run_rmhd2d_ppc import rmhd2d_ppc
         petscvp = rmhd2d_ppc(runfile)
+    elif mode == "split":
+        # split solver with physics based preconditioner
+        from run_rmhd2d_split import rmhd2d_split
+        petscvp = rmhd2d_split(runfile)
     elif mode == "asm":
         # additive schwarz preconditioner
         from run_rmhd2d_asm import rmhd2d_asm
