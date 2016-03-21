@@ -80,6 +80,33 @@ class petscMHD2D(object):
         self.hy = Ly / self.ny                       # gridstep size in y
         
         
+        # set some variables for hermite extrapolation
+        t0 = 0.
+        t1 = 1.
+        t  = 2.
+        
+        a0 = 2./(t0-t1)
+        a1 = 2./(t1-t0)
+        
+        b0 = 1./(t0-t1)**2
+        b1 = 1./(t1-t0)**2
+        
+        d0 = 1./(t-t0)
+        d1 = 1./(t-t1)
+        
+        e0 = d0*b0
+        e1 = d1*b1
+        
+        self.hermite_x0 = e0*(d0-a0)
+        self.hermite_x1 = e1*(d1-a1)
+        
+        self.hermite_f0 = e0*self.ht
+        self.hermite_f1 = e1*self.ht
+        
+        self.hermite_den = 1. / (self.hermite_x0 + self.hermite_x1)
+        
+        
+        
         self.time = PETSc.Vec().createMPI(1, PETSc.DECIDE, comm=PETSc.COMM_WORLD)
         self.time.setName('t')
         
@@ -404,18 +431,8 @@ class petscMHD2D(object):
         x_arr[xs:xe, ys:ye, 2] = self.da1.getVecArray(self.P)[xs:xe, ys:ye]
         x_arr[xs:xe, ys:ye, 3] = self.da1.getVecArray(self.O)[xs:xe, ys:ye]
         
-        self.A.copy(self.Ap)
-        self.J.copy(self.Jp)
-        self.P.copy(self.Pp)
-        self.O.copy(self.Op)
-        
-        self.A.copy(self.Ah)
-        self.J.copy(self.Jh)
-        self.P.copy(self.Ph)
-        self.O.copy(self.Oh)
-        
         # update solution history
-        self.petsc_solver.update_history(self.x)
+        self.petsc_solver.update_previous(self.x)
         
         
         # create HDF5 output file
@@ -468,7 +485,18 @@ class petscMHD2D(object):
                 self.time.setValue(0, current_time)
             
             # calculate initial guess
-            self.calculate_initial_guess(itime)
+            self.calculate_initial_guess(initial=itime==1)
+#             self.calculate_initial_guess(initial=True)
+            
+            # update history
+            self.petsc_solver.update_history(self.x)
+            
+            # copy initial guess to x
+            x_arr = self.da4.getVecArray(self.x)
+            x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+            x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+            x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+            x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
             
             # solve
             i = 0
@@ -534,116 +562,97 @@ class petscMHD2D(object):
                 self.petsc_solver.function(self.f)
                 pred_norm = self.f.norm()
 
-
                 if PETSc.COMM_WORLD.getRank() == 0:
                     print("  Nonlinear Solver Iteration %i: %5i GMRES iterations,   residual = %22.16E,   tolerance = %22.16E" % (i, self.ksp.getIterationNumber(), pred_norm, ksp_tol) )
                 
-#                 if (pred_norm > prev_norm and i > 1) or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
                 if abs(prev_norm - pred_norm) < self.cfg['solver']['petsc_snes_stol'] or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
                     break
-            
-            # compute function norm
             
             # output some solver info
             if PETSc.COMM_WORLD.getRank() == 0:
                 print()
-#                 print("  Nonlin Solver:  %5i iterations,   funcnorm = %24.16E" % (i, pred_norm) )
-#                 print()
             
-#             if self.snes.getConvergedReason() < 0:
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print()
-#                     print("Solver not converging...   (Reason: %i)" % (self.snes.getConvergedReason()))
-#                     print()
-           
-            # copy history
-            self.Ap.copy(self.Ah)
-            self.Jp.copy(self.Jh)
-            self.Pp.copy(self.Ph)
-            self.Op.copy(self.Oh)
-            
-            x_arr = self.da4.getVecArray(self.x)
-            
-            self.da1.getVecArray(self.Ap)[:,:] = x_arr[:,:,0]
-            self.da1.getVecArray(self.Jp)[:,:] = x_arr[:,:,1]
-            self.da1.getVecArray(self.Pp)[:,:] = x_arr[:,:,2]
-            self.da1.getVecArray(self.Op)[:,:] = x_arr[:,:,3]
-            
-            # update history
-            self.petsc_solver.update_history(self.x)
             
             # save to hdf5 file
             if itime % self.nsave == 0 or itime == self.nt + 1:
                 self.save_to_hdf5(itime)
+        
+        # output total time spent in run
+        run_time = time.time() - run_time
+
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("Solver runtime: %f seconds." % run_time)
+            print()
             
         
-    def calculate_initial_guess(self, itime):
-        if itime == 1:
-            self.derivatives.arakawa_vec(self.Ap, self.Pp, self.FA)
+    def calculate_initial_guess(self, initial=False):
+        
+        self.petsc_solver.Ap.copy(self.A)
+        self.petsc_solver.Op.copy(self.O)
+        
+        if initial:
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
+            
+            self.A.axpy(0.5*self.ht, self.FA)
+            self.O.axpy(0.5*self.ht, self.FO1)
+            self.O.axpy(0.5*self.ht, self.FO2)
+            
+            self.derivatives.laplace_vec(self.A, self.J, -1.)
+            
+#             self.P.set(0.)
+            self.O.copy(self.Pb)
+            self.poisson_nullspace.remove(self.Pb)
+            self.poisson_ksp.solve(self.Pb, self.P)
+            
+            self.derivatives.arakawa_vec(self.A, self.P, self.FA)
+            self.derivatives.arakawa_vec(self.O, self.P, self.FO1)
+            self.derivatives.arakawa_vec(self.A, self.J, self.FO2)
+            
+            self.petsc_solver.Ap.copy(self.A)
+            self.petsc_solver.Op.copy(self.O)
+            
             self.A.axpy(self.ht, self.FA)
+            self.O.axpy(self.ht, self.FO1)
+            self.O.axpy(self.ht, self.FO2)
+
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
             
-            self.derivatives.arakawa_vec(self.Op, self.Pp, self.FO)
-            self.O.axpy(self.ht, self.FO)
-            self.derivatives.arakawa_vec(self.Ap, self.Jp, self.FO)
-            self.O.axpy(self.ht, self.FO)
-        
         else:
-        
             self.A.set(0.)
             self.O.set(0.)
-            
-            t0 = 0.
-            t1 = 1.
-            t  = 2.
-            
-            a0 = 2./(t0-t1)
-            a1 = 2./(t1-t0)
-            
-            b0 = 1./(t0-t1)**2
-            b1 = 1./(t1-t0)**2
-            
-            d = 1./(t-t0)
-            c1 = d*b0
-            c0 = c1*(d-a0)
-            den = c0
-            
-            self.A.axpy(c0, self.Ah)
-            self.derivatives.arakawa_vec(self.Ah, self.Ph, self.FA)
-            self.A.axpy(c1*self.ht, self.FA)
-            
-            self.O.axpy(c0, self.Oh)
-            self.derivatives.arakawa_vec(self.Oh, self.Ph, self.FO)
-            self.O.axpy(c1*self.ht, self.FO)
-            self.derivatives.arakawa_vec(self.Ah, self.Jh, self.FO)
-            self.O.axpy(c1*self.ht, self.FO)
-            
-            d = 1./(t-t1)
-            c1 = d*b1
-            c0 = c1*(d-a1)
-            den += c0
     
-            self.A.axpy(c0, self.Ap)
-            self.derivatives.arakawa_vec(self.Ap, self.Pp, self.FA)
-            self.A.axpy(c1*self.ht, self.FA)
+            self.A.axpy(self.hermite_x0, self.petsc_solver.Ah)
+            self.A.axpy(self.hermite_f0, self.FA)
             
-            self.O.axpy(c0, self.Op)
-            self.derivatives.arakawa_vec(self.Op, self.Pp, self.FO)
-            self.O.axpy(c1*self.ht, self.FO)
-            self.derivatives.arakawa_vec(self.Ap, self.Jp, self.FO)
-            self.O.axpy(c1*self.ht, self.FO)
+            self.O.axpy(self.hermite_x0, self.petsc_solver.Oh)
+            self.O.axpy(self.hermite_f0, self.FO1)
+            self.O.axpy(self.hermite_f0, self.FO2)
             
-            self.A.scale(1./den)
-            self.O.scale(1./den)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Pp, self.FA)
+            self.derivatives.arakawa_vec(self.petsc_solver.Op, self.petsc_solver.Pp, self.FO1)
+            self.derivatives.arakawa_vec(self.petsc_solver.Ap, self.petsc_solver.Jp, self.FO2)
+            
+            self.A.axpy(self.hermite_x1, self.petsc_solver.Ap)
+            self.A.axpy(self.hermite_f1, self.FA)
+            
+            self.O.axpy(self.hermite_x1, self.petsc_solver.Op)
+            self.O.axpy(self.hermite_f1, self.FO1)
+            self.O.axpy(self.hermite_f1, self.FO2)
+            
+            self.A.scale(self.hermite_den)
+            self.O.scale(self.hermite_den)
         
         self.derivatives.laplace_vec(self.A, self.J, -1.)
         
-        self.poisson_ksp.solve(self.O, self.P)
+#         self.P.set(0.)
+        self.O.copy(self.Pb)
+        self.poisson_nullspace.remove(self.Pb)
+        self.poisson_ksp.solve(self.Pb, self.P)
         
-        x_arr = self.da4.getVecArray(self.x)
-        x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
-        x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
-        x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
-        x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
         
     
     
