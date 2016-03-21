@@ -367,8 +367,7 @@ class petscMHD2D(object):
         
         
         # update solution history
-        self.petsc_solver.update_history(self.x)
-#         self.petsc_matrix.update_history(self.x)
+        self.petsc_solver.update_previous(self.x)
         
         
         # create HDF5 output file
@@ -421,6 +420,9 @@ class petscMHD2D(object):
             # calculate initial guess
 #            self.calculate_initial_guess()
             
+            # update history
+            self.petsc_solver.update_history()
+            
             # solve
             self.snes.solve(None, self.x)
             
@@ -442,10 +444,6 @@ class petscMHD2D(object):
                     print()
            
            
-            # update history
-            self.petsc_solver.update_history(self.x)
-#             self.petsc_matrix.update_history(self.x)
-            
             # save to hdf5 file
 #            if itime % self.nsave == 0 or itime == self.grid.nt + 1:
             self.save_to_hdf5(itime)

@@ -99,16 +99,7 @@ cdef class PETScSolver(object):
         
         
     
-    def update_history(self, Vec X):
-#         X.copy(self.Xh)
-#         
-#         x = self.da4.getVecArray(self.Xh)
-#          
-#         self.da1.getVecArray(self.Ah)[:,:] = x[:,:,0]
-#         self.da1.getVecArray(self.Jh)[:,:] = x[:,:,1]
-#         self.da1.getVecArray(self.Ph)[:,:] = x[:,:,2]
-#         self.da1.getVecArray(self.Oh)[:,:] = x[:,:,3]
-        
+    def update_history(self):
         self.Ap.copy(self.Ah)
         self.Jp.copy(self.Jh)
         self.Pp.copy(self.Ph)

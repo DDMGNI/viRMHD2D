@@ -486,7 +486,7 @@ class petscMHD2D(object):
 #             self.calculate_initial_guess(initial=True)
             
             # update history
-            self.petsc_solver.update_history(self.x)
+            self.petsc_solver.update_history()
             
             # copy initial guess to x
             x_arr = self.da4.getVecArray(self.x)
