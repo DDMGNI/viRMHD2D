@@ -20,12 +20,12 @@ from PETScPoissonCFD2                  import PETScPoisson
 from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 
-# solver_package = 'superlu_dist'
-solver_package = 'mumps'
+solver_package = 'superlu_dist'
+# solver_package = 'mumps'
 # solver_package = 'pastix'
 
 
-class rmhd2d_asm(rmhd2d):
+class rmhd2d_lu(rmhd2d):
     '''
     PETSc/Python Vlasov Poisson Solver in 1D.
     '''
@@ -47,15 +47,9 @@ class rmhd2d_asm(rmhd2d):
 #        OptDB.setValue('log_info',    '')
 #        OptDB.setValue('log_summary', '')
         
-#         OptDB.setValue('snes_ls', 'basic')
-        OptDB.setValue('snes_ls', 'quadratic')
+        OptDB.setValue('snes_ls', 'basic')
+#         OptDB.setValue('snes_ls', 'quadratic')
 
-        OptDB.setValue('pc_asm_type',  'restrict')
-        OptDB.setValue('pc_asm_overlap', 3)
-        OptDB.setValue('sub_ksp_type', 'preonly')
-        OptDB.setValue('sub_pc_type', 'lu')
-        OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
-        
         OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
         OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])
         OptDB.setValue('snes_stol',   self.cfg['solver']['petsc_snes_stol'])
@@ -65,14 +59,10 @@ class rmhd2d_asm(rmhd2d):
         OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
         OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
         
-        OptDB.setValue('pc_type', 'hypre')
-        OptDB.setValue('pc_hypre_type', 'boomeramg')
-        OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
-        
-# #        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
-# #        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
-#         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
-#         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
+#        OptDB.setValue('mat_superlu_dist_matinput', 'DISTRIBUTED')
+#        OptDB.setValue('mat_superlu_dist_rowperm',  'NATURAL')
+        OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
+        OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
         
         
         # create Jacobian, Function, and linear Matrix objects
@@ -100,8 +90,8 @@ class rmhd2d_asm(rmhd2d):
         self.snes.setFunction(self.petsc_solver.snes_function, self.f)
         self.snes.setJacobian(self.updateJacobian, self.Jmf, self.Jac)
         self.snes.setFromOptions()
-        self.snes.getKSP().setType('gmres')
-        self.snes.getKSP().getPC().setType('asm')
+        self.snes.getKSP().setType('preonly')
+        self.snes.getKSP().getPC().setType('lu')
         self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
         # update solution history

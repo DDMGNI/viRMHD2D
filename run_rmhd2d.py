@@ -614,9 +614,9 @@ if __name__ == '__main__':
 #     
 #     args = parser.parse_args()
     
-    if OptDB.hasName("h"):
-        
-        sys.exit(0)
+#     if OptDB.hasName("h"):
+#         
+#         sys.exit(0)
     
     
     runfile = OptDB.getString('c')
