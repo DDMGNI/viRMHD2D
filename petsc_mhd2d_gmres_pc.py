@@ -169,7 +169,7 @@ class petscMHD2D(object):
 #         OptDB.setValue('mat_superlu_dist_colperm',  'PARMETIS')
 #         OptDB.setValue('mat_superlu_dist_parsymbfact', 1)
         
-        OptDB.setValue('ksp_monitor',  '')
+#         OptDB.setValue('ksp_monitor',  '')
 #         OptDB.setValue('snes_monitor', '')
 #          
 #        OptDB.setValue('log_info',    '')
@@ -239,16 +239,6 @@ class petscMHD2D(object):
         self.J  = self.da1.createGlobalVec()        # current density           J
         self.P  = self.da1.createGlobalVec()        # streaming function        psi
         self.O  = self.da1.createGlobalVec()        # vorticity                 omega
-
-        self.Ap = self.da1.createGlobalVec()
-        self.Jp = self.da1.createGlobalVec()
-        self.Pp = self.da1.createGlobalVec()
-        self.Op = self.da1.createGlobalVec()
-
-        self.Ah = self.da1.createGlobalVec()
-        self.Jh = self.da1.createGlobalVec()
-        self.Ph = self.da1.createGlobalVec()
-        self.Oh = self.da1.createGlobalVec()
 
         self.Bx = self.da1.createGlobalVec()
         self.By = self.da1.createGlobalVec()
@@ -407,9 +397,9 @@ class petscMHD2D(object):
         self.poisson_ksp.setFromOptions()
         self.poisson_ksp.setOperators(self.Pm)
 #         self.poisson_ksp.setTolerances(rtol=1E-15, atol=1E-16)
-        self.poisson_ksp.setTolerances(rtol=self.cfg['solver'].as_float('poisson_ksp_rtol'),
-                                       atol=self.cfg['solver'].as_float('poisson_ksp_atol'),
-                                       max_it=self.cfg['solver'].as_int('poisson_ksp_max_iter'))
+        self.poisson_ksp.setTolerances(rtol=self.cfg['solver']['poisson_ksp_rtol'],
+                                       atol=self.cfg['solver']['poisson_ksp_atol'],
+                                       max_it=self.cfg['solver']['poisson_ksp_max_iter'])
         self.poisson_ksp.setType('cg')
         self.poisson_ksp.getPC().setType('hypre')
         
