@@ -154,7 +154,7 @@ class petscMHD2D(object):
                                     sizes=[self.nx, self.ny],
                                     proc_sizes=[PETSc.DECIDE, PETSc.DECIDE],
                                     boundary_type=('periodic', 'periodic'),
-                                    stencil_width=2,
+                                    stencil_width=1,
                                     stencil_type='box')
         
         
@@ -163,7 +163,7 @@ class petscMHD2D(object):
                                      sizes=[self.nx, self.ny],
                                      proc_sizes=[PETSc.DECIDE, PETSc.DECIDE],
                                      boundary_type=('periodic', 'periodic'),
-                                     stencil_width=2,
+                                     stencil_width=1,
                                      stencil_type='box')
         
         
