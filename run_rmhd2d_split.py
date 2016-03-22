@@ -74,10 +74,16 @@ class rmhd2d_split(rmhd2d):
         self.dy2 = self.da2.createGlobalVec()
         self.b   = self.da2.createGlobalVec()
         
+        self.Ad = self.da1.createGlobalVec()
+        self.Jd = self.da1.createGlobalVec()
+        self.Pd = self.da1.createGlobalVec()
+        self.Od = self.da1.createGlobalVec()
+        
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_precon   = PETScPreconditioner(self.da1, self.da2, self.nx, self.ny, self.ht, self.hx, self.hy)
+#         self.petsc_solver2  = PETScSolverDOF2(self.da1, self.da2, self.nx, self.ny, self.ht, self.hx, self.hy)
         self.petsc_solver2  = PETScSolverDOF2(self.da1, self.da2, self.nx, self.ny, self.ht, self.hx, self.hy, self.petsc_precon)
-        self.petsc_solver4  = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
+        self.petsc_solver  = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
         
         
         self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
@@ -103,7 +109,7 @@ class rmhd2d_split(rmhd2d):
         self.ksp.getPC().setType('none')
         
         # update solution history
-        self.petsc_solver4.update_previous(self.x)
+        self.petsc_solver.update_previous(self.x)
         self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
         
         
@@ -134,27 +140,27 @@ class rmhd2d_split(rmhd2d):
                 self.time.setValue(0, current_time)
             
             # calculate initial guess
-#             self.calculate_initial_guess(initial=itime==1)
+            self.calculate_initial_guess(initial=itime==1)
 #             self.calculate_initial_guess(initial=True)
             
             # update history
-            self.petsc_solver4.update_history()
+            self.petsc_solver.update_history()
             self.petsc_solver2.update_history()
             
             # copy initial guess to x
-#             x_arr = self.da4.getVecArray(self.x)
-#             x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
-#             x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
-#             x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
-#             x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
+            x_arr = self.da4.getVecArray(self.x)
+            x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+            x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+            x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+            x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
             
             # solve
             i = 0
             
-            self.petsc_solver4.update_previous(self.x)
+            self.petsc_solver.update_previous(self.x)
             self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
             
-            self.petsc_solver4.function(self.f)
+            self.petsc_solver.function(self.f)
             pred_norm = self.f.norm()
             prev_norm = pred_norm
             
@@ -172,7 +178,7 @@ class rmhd2d_split(rmhd2d):
                 b_arr = self.da2.getVecArray(self.b)
                 
                 b_arr[:,:,0] = -f_arr[:,:,0]
-                b_arr[:,:,1] = -f_arr[:,:,2]
+                b_arr[:,:,1] = -f_arr[:,:,3]
                 
                 self.da1.getVecArray(self.FA)[...] = f_arr[:,:,0]
                 self.da1.getVecArray(self.FJ)[...] = f_arr[:,:,1]
@@ -181,8 +187,8 @@ class rmhd2d_split(rmhd2d):
                 
                 self.petsc_solver2.update_function(self.FA, self.FJ, self.FP, self.FO)
                 
-#                 self.dy2.set(0.)
-                self.b.copy(self.dy2)
+                self.dy2.set(0.)
+#                 self.b.copy(self.dy2)
 
                 if i == 1:
                     zeta_A  = 0.
@@ -199,12 +205,13 @@ class rmhd2d_split(rmhd2d):
                     ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
 #                     self.ksp.setTolerances(rtol=ksp_tol, max_it=5)
                 
-                self.ksp.setTolerances(rtol=ksp_tol)
+#                 self.ksp.setTolerances(rtol=ksp_tol)
                 self.ksp.solve(self.b, self.dy2)
                 
                 self.petsc_precon.solve(self.dy2, self.dx2)
+#                 self.dy2.copy(self.dx2)
 
-                dx_arr = self.da4.getVecArray(self.dx2)
+                dx_arr = self.da2.getVecArray(self.dx2)
 
                 self.da1.getVecArray(self.Ad)[...] = dx_arr[:,:,0]
                 self.da1.getVecArray(self.Pd)[...] = dx_arr[:,:,1]
@@ -222,18 +229,16 @@ class rmhd2d_split(rmhd2d):
                 dx_arr[:,:,3] = self.da1.getVecArray(self.Od)[...]
                 
                 self.x.axpy(1., self.dx)
+                self.A.axpy(1., self.Ad)
+                self.J.axpy(1., self.Jd)
+                self.P.axpy(1., self.Pd)
+                self.O.axpy(1., self.Od)
                 
-                x_arr = self.da4.getVecArray(self.x)
-                self.da1.getVecArray(self.A)[...] = x_arr[:,:,0]
-                self.da1.getVecArray(self.J)[...] = x_arr[:,:,1]
-                self.da1.getVecArray(self.P)[...] = x_arr[:,:,2]
-                self.da1.getVecArray(self.O)[...] = x_arr[:,:,3]
-                
-                self.petsc_solver4.update_previous(self.x)
+                self.petsc_solver.update_previous(self.x)
                 self.petsc_solver2.update_previous(self.A, self.J, self.P, self.O)
                 
                 prev_norm = pred_norm
-                self.petsc_solver4.function(self.f)
+                self.petsc_solver.function(self.f)
                 pred_norm = self.f.norm()
 
                 if PETSc.COMM_WORLD.getRank() == 0:

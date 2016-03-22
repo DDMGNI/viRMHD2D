@@ -197,7 +197,15 @@ cdef class PETScPreconditioner(object):
     @cython.boundscheck(False)
     def solve(self, Vec X, Vec Y):
         
-        self.update_function(X)
+        x_arr = self.da2.getVecArray(X)
+        
+        self.da1.getVecArray(self.FA)[:,:] = x_arr[:,:,0]
+        self.da1.getVecArray(self.FO)[:,:] = x_arr[:,:,1]
+        
+        self.FJ.set(0.)
+        self.FP.set(0.)
+        
+#         self.update_function(X)
         
         
         self.derivatives.arakawa_vec(self.Pa, self.FP, self.T1)

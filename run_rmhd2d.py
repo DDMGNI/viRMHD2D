@@ -308,10 +308,10 @@ class rmhd2d(object):
         
         # copy initial data vectors to x
         x_arr = self.da4.getVecArray(self.x)
-        x_arr[xs:xe, ys:ye, 0] = self.da1.getVecArray(self.A)[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 1] = self.da1.getVecArray(self.J)[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 2] = self.da1.getVecArray(self.P)[xs:xe, ys:ye]
-        x_arr[xs:xe, ys:ye, 3] = self.da1.getVecArray(self.O)[xs:xe, ys:ye]
+        x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+        x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+        x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+        x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
         
         # create HDF5 output file
         self.hdf5_viewer = PETSc.ViewerHDF5().create(self.cfg['io']['hdf5_output'],
