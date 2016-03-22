@@ -28,6 +28,20 @@ class Config(ConfigObj):
         self.validator = Validator()
         self.valid     = self.validate(self.validator, copy=True)
         
+        
+        if self['grid']['x1'] != self['grid']['x2']:
+            self['grid']['Lx'] = self['grid']['x2'] - self['grid']['x1']
+        else:
+            self['grid']['x1'] = 0.0
+            self['grid']['x2'] = self['grid']['Lx']
+        
+        if self['grid']['y1'] != self['grid']['y2']:
+            self['grid']['Ly'] = self['grid']['y2'] - self['grid']['y1']
+        else:
+            self['grid']['y1'] = 0.0
+            self['grid']['y2'] = self['grid']['Ly']
+        
+        
     
     def write_default_config(self):
         '''

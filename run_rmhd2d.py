@@ -58,18 +58,6 @@ class rmhd2d(object):
         y1   = self.cfg['grid']['y1']                    # 
         y2   = self.cfg['grid']['y2']                    # 
         
-        if x1 != x2:
-            Lx = x2-x1
-        else:
-            x1 = 0.0
-            x2 = Lx
-        
-        if y1 != y2:
-            Ly = y2-y1
-        else:
-            y1 = 0.0
-            y2 = Ly
-        
         self.hx = Lx / self.nx                       # gridstep size in x
         self.hy = Ly / self.ny                       # gridstep size in y
         
