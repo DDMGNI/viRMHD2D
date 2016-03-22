@@ -363,6 +363,7 @@ class PlotMHD2D(object):
         
         plt.draw()
         plt.show(block=final)
+        plt.pause(0.1)
         
         return self.figure
     
