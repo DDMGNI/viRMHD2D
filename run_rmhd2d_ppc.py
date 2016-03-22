@@ -19,8 +19,8 @@ from petsc4py import PETSc
 from PETScDerivatives                    import PETScDerivatives
 from PETScPoissonCFD2                    import PETScPoisson
 from PETScNonlinearSolverArakawaJ1CFD2   import PETScSolver
-from PETScPreconditionerArakawaJ1CFD2    import PETScPreconditioner
-# from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
+# from PETScPreconditionerArakawaJ1CFD2    import PETScPreconditioner
+from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
 
 
 solver_package = 'superlu_dist'
@@ -62,8 +62,8 @@ class rmhd2d_ppc(rmhd2d):
         
         
         # create Jacobian, Function, and linear Matrix objects
-        self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
-        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.petsc_precon)
+        self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
+        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de, self.petsc_precon)
         
         
         self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],

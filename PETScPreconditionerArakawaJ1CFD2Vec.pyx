@@ -27,7 +27,8 @@ cdef class PETScPreconditioner(object):
     
     def __init__(self, object da1, object da4,
                  int nx, int ny,
-                 double ht, double hx, double hy):
+                 double ht, double hx, double hy,
+                 double skin_depth=0.):
         '''
         Constructor
         '''

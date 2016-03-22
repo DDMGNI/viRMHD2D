@@ -80,6 +80,9 @@ class rmhd2d(object):
         if PETSc.COMM_WORLD.getRank() == 0:
             self.time.setValue(0, 0.0)
         
+        # electron skin depth
+        self.de = self.cfg['initial_data']['skin_depth']
+        
         # set global tolerance
         self.tolerance = self.cfg['solver']['petsc_snes_atol'] * self.nx * self.ny
         

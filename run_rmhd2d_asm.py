@@ -71,7 +71,7 @@ class rmhd2d_asm(rmhd2d):
         
         
         # create Jacobian, Function, and linear Matrix objects
-        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)
+        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
         
         
         # initialise linear matrix
