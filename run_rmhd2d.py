@@ -312,8 +312,46 @@ class rmhd2d(object):
         x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
         
         # create HDF5 output file
+        hdf5out = h5py.File(self.cfg['io']['hdf5_output'], "w", driver="mpio", comm=PETSc.COMM_WORLD.tompi4py())
+        
+#         hdf5_params = hdf5out.create_group("parameters")
+#         hdf5_params.attrs["run_id"] = self.run_id
+#         
+#         for cfg_group in self.cfg:
+#             hdf5_group = hdf5_params.create_group(cfg_group)
+#             
+#             for cfg_item in self.cfg[cfg_group]:
+#                 hdf5_group.attrs[cfg_item] = self.cfg[cfg_group][cfg_item]
+#         
+#         python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
+#         
+#         hdf5_params["initial_data"].attrs["python_file"] = python_file.read()
+#         
+#         python_file.close()
+        
+        hdf5out.attrs["run_id"] = self.run_id
+        
+        for cfg_group in self.cfg:
+            for cfg_item in self.cfg[cfg_group]:
+                if self.cfg[cfg_group][cfg_item] != None:
+                    value = self.cfg[cfg_group][cfg_item]
+                else:
+                    value = ""
+                    
+                print(cfg_group + "." + cfg_item, value)
+                hdf5out.attrs[cfg_group + "." + cfg_item] = value
+        
+        python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
+        
+        hdf5out.attrs["initial_data.python_file"] = python_file.read()
+        
+        python_file.close()
+        
+        hdf5out.close()
+        
+        # create HDF5 viewer
         self.hdf5_viewer = PETSc.ViewerHDF5().create(self.cfg['io']['hdf5_output'],
-                                          mode=PETSc.Viewer.Mode.WRITE,
+                                          mode=PETSc.Viewer.Mode.APPEND,
                                           comm=PETSc.COMM_WORLD)
         
         self.hdf5_viewer.pushGroup("/")
