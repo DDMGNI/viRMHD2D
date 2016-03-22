@@ -7,8 +7,8 @@
 #$ -P  tokp
 #$ -pe impi_hydra 16
 #
-#$ -o /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256.$JOB_ID.out
-#$ -e /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256.$JOB_ID.err
+#$ -o /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256_lu.$JOB_ID.out
+#$ -e /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256_lu.$JOB_ID.err
 #
 #$ -m e
 #$ -M michael.kraus@ipp.mpg.de
@@ -18,7 +18,7 @@
 #$ -N viRMHD2D
 #
 
-RUNID=current_sheet_512x256
+RUNID=current_sheet_512x256_lu
 
 
 module load intel/14.0
@@ -43,4 +43,4 @@ export LD_PRELOAD=/afs/@cell/common/soft/intel/ics2013/14.0/compiler/lib/intel64
 export RUN_DIR=/u/mkraus/Codes/viRMHD2D
 cd $RUN_DIR
 
-mpiexec -perhost 16 -l -n 16 python3.3 petsc_mhd2d.py runs/$RUNID.cfg 
+mpiexec -perhost 16 -l -n 16 python3.3 run_rmhd2d.py -m 'lu' -c runs/$RUNID.cfg 

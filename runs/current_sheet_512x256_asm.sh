@@ -2,13 +2,13 @@
 #
 #$ -cwd
 #
-#$ -l h_rt=48:00:00
+#$ -l h_rt=24:00:00
 #
 #$ -P  tokp
-#$ -pe impi_hydra 128
+#$ -pe impi_hydra 16
 #
-#$ -o /tokp/scratch/mkraus/viRMHD2D/current_sheet_2048x512.$JOB_ID.out
-#$ -e /tokp/scratch/mkraus/viRMHD2D/current_sheet_2048x512.$JOB_ID.err
+#$ -o /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256_asm.$JOB_ID.out
+#$ -e /tokp/scratch/mkraus/viRMHD2D/current_sheet_512x256_asm.$JOB_ID.err
 #
 #$ -m e
 #$ -M michael.kraus@ipp.mpg.de
@@ -18,7 +18,7 @@
 #$ -N viRMHD2D
 #
 
-RUNID=current_sheet_2048x512
+RUNID=current_sheet_512x256_asm
 
 
 module load intel/14.0
@@ -43,4 +43,4 @@ export LD_PRELOAD=/afs/@cell/common/soft/intel/ics2013/14.0/compiler/lib/intel64
 export RUN_DIR=/u/mkraus/Codes/viRMHD2D
 cd $RUN_DIR
 
-mpiexec -perhost 16 -l -n 128 python3.3 petsc_mhd2d_gmres.py runs/$RUNID.cfg 
+mpiexec -perhost 16 -l -n 16 python3.3 run_rmhd2d.py -m 'asm' -c runs/$RUNID.cfg 
