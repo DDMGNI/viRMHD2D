@@ -41,6 +41,9 @@ class rmhd2d_split(rmhd2d):
         
         super().__init__(cfgfile)#rmhd2d_ppc, self
         
+        # solver mode
+        self.mode = "split"
+        
         OptDB = PETSc.Options()
         
 #         OptDB.setValue('ksp_monitor',  '')

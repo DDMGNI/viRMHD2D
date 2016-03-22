@@ -41,6 +41,9 @@ class rmhd2d_ppc(rmhd2d):
         
         super().__init__(cfgfile)#rmhd2d_ppc, self
         
+        # solver mode
+        self.mode = "ppc"
+        
         OptDB = PETSc.Options()
         
 #         OptDB.setValue('ksp_monitor',  '')

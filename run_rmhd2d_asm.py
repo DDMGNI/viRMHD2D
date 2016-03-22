@@ -38,6 +38,8 @@ class rmhd2d_asm(rmhd2d):
         
         super().__init__(cfgfile)#rmhd2d_ppc, self
         
+        # solver mode
+        self.mode = "asm"
         
         OptDB = PETSc.Options()
         
