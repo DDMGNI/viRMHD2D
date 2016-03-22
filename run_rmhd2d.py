@@ -9,9 +9,10 @@ petsc4py.init(sys.argv)
 
 from petsc4py import PETSc
 
+import h5py
 import numpy as np
 
-import argparse, time
+import argparse, datetime, time
 import pstats, cProfile
 
 from config import Config
@@ -37,6 +38,12 @@ class rmhd2d(object):
         '''
         Constructor
         '''
+        
+        # solver mode
+        self.mode = "none"
+        
+        # set run id to timestamp
+        self.run_id = datetime.datetime.fromtimestamp(time.time()).strftime("%y%m%d%H%M%S")
         
         # load run config file
         self.cfg = Config(cfgfile)
