@@ -138,20 +138,21 @@ cdef class PETScPreconditioner(object):
                                             comm=PETSc.COMM_WORLD)
         self.Qm.setUp()
 
-        self.QA = self.da1.createMat()
-        self.QA.setOption(self.QA.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-        self.QA.setUp()
-        self.formMat(self.QA)
-        
         # create linear parabolic solver
         self.parabol_ksp = PETSc.KSP().create()
         self.parabol_ksp.setFromOptions()
         if self.de != 0.:
+            self.QA = self.da1.createMat()
+            self.QA.setOption(self.QA.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+            self.QA.setUp()
+            self.formMat(self.QA)
+        
             self.parabol_ksp.setOperators(self.Qm, self.QA)
             self.poisson_ksp.getPC().setType('hypre')
         else:
             self.parabol_ksp.setOperators(self.Qm)
             self.parabol_ksp.getPC().setType('none')
+
 #         self.parabol_ksp.setNormType(self.parabol_ksp.NormType.NORM_NONE)
 #         self.parabol_ksp.setType('gmres')
         self.parabol_ksp.setType('cg')
@@ -255,22 +256,22 @@ cdef class PETScPreconditioner(object):
                                                - 0.5*self.ht * 0.5*self.ht * self.da1.getVecArray(self.T3)[:,:]
 
             if self.de != 0.:
-#                 self.derivatives.arakawa_vec(self.Pd, self.Ja, self.T1)
-#                 self.derivatives.arakawa_vec(self.Pa, self.Jd, self.T2)
-#                   
-#                 self.da1.getVecArray(self.Qb)[:,:] -= self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
-#                                                     + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:] \
-#                                                     + self.de**2 * self.da1.getVecArray(self.Jd)[:,:]
-
-                self.derivatives.laplace_vec(self.Ad, self.T3, -1.)
                 self.derivatives.arakawa_vec(self.Pd, self.Ja, self.T1)
-                self.derivatives.arakawa_vec(self.Pa, self.T3, self.T2)
-                self.derivatives.arakawa_vec(self.Pa, self.FJ, self.T3)
- 
-                self.da1.getVecArray(self.Qb)[:,:] += self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                self.derivatives.arakawa_vec(self.Pa, self.Jd, self.T2)
+                   
+                self.da1.getVecArray(self.Qb)[:,:] -= self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
                                                     + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:] \
-                                                    + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T3)[:,:] \
-                                                    - self.de**2 * self.da1.getVecArray(self.FJ)[:,:]
+                                                    + self.de**2 * self.da1.getVecArray(self.Jd)[:,:]
+
+#                 self.derivatives.laplace_vec(self.Ad, self.T3, -1.)
+#                 self.derivatives.arakawa_vec(self.Pd, self.Ja, self.T1)
+#                 self.derivatives.arakawa_vec(self.Pa, self.T3, self.T2)
+#                 self.derivatives.arakawa_vec(self.Pa, self.FJ, self.T3)
+#  
+#                 self.da1.getVecArray(self.Qb)[:,:] += self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+#                                                     + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:] \
+#                                                     + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T3)[:,:] \
+#                                                     - self.de**2 * self.da1.getVecArray(self.FJ)[:,:]
                 
                 self.derivatives.arakawa_vec(self.Aa, self.Ad, self.T1)
                 self.derivatives.arakawa_vec(self.Aa, self.T1, self.T2)
@@ -345,32 +346,11 @@ cdef class PETScPreconditioner(object):
     @cython.wraparound(False)
     @cython.boundscheck(False)
     def matrix_mult(self, Vec Q, Vec Y):
-#         cdef double norm
-    
         if self.de != 0.:
             self.derivatives.laplace_vec(Q, Y, -self.de**2)
         else:
             self.derivatives.arakawa_vec(self.Aa, Q, self.T)
             self.derivatives.arakawa_vec(self.Aa, self.T, self.Y)
             Y.scale(-0.5*self.ht*0.5*self.ht)
-#             Y.set(0.)
-#         Y.set(0.)
-        
-#         norm = Q.norm()
-#         print("Norm X:", norm)
-# 
-#         norm = Y.norm()
-#         print("Norm D:", norm)
-        
-#         Q.copy(Y)
-#         self.derivatives.arakawa_vec(self.Aa, Q, self.T)
-#         self.derivatives.arakawa_vec(self.Aa, self.T, self.T2)
-#         Y.axpy(-0.5*self.ht*0.5*self.ht, self.T2)
+
         Y.axpy(1., Q)
-
-#         norm = self.T2.norm() * 0.5*self.ht*0.5*self.ht
-#         print("Norm B:", norm)
-        
-
-#         self.derivatives.arakawa_vec(self.Pa, Q, self.T3)
-#         Y.axpy(0.5*self.ht, self.T3)
