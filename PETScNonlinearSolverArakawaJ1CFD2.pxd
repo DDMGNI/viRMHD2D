@@ -24,6 +24,8 @@ cdef class PETScSolver(object):
     cdef double hx_inv
     cdef double hy_inv
     
+    cdef double de
+    
     cdef object da1
     cdef object da4
     

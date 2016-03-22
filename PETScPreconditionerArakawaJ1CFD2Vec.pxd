@@ -25,7 +25,12 @@ cdef class PETScPreconditioner(object):
     cdef double hx_inv
     cdef double hy_inv
     
+    cdef double lapx_fac
+    cdef double lapy_fac
+    
     cdef int jacobi_max_it
+    
+    cdef double de
     
     cdef object da1
     cdef object da4
@@ -70,6 +75,7 @@ cdef class PETScPreconditioner(object):
     cdef Mat Pm
     cdef Vec Qb
     cdef Mat Qm
+    cdef Mat QA
 
     cdef Vec localQ
     cdef Vec localT

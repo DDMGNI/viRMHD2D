@@ -50,6 +50,9 @@ cdef class PETScSolver(object):
         self.hx_inv = 1. / hx
         self.hy_inv = 1. / hy
         
+        # electron skin depth
+        self.de = skin_depth
+        
         
         # create history vector
         self.Xp = self.da4.createGlobalVec()
@@ -383,6 +386,17 @@ cdef class PETScSolver(object):
                  + 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
                  + 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:]
         
+        if self.de != 0.:
+#             self.derivatives.laplace_vec(self.Ad, self.YJ, -1.)
+#             self.derivatives.arakawa_vec(self.Pa, self.YJ, self.T1)
+            self.derivatives.arakawa_vec(self.Pa, self.Jd, self.T1)
+            self.derivatives.arakawa_vec(self.Pd, self.Ja, self.T2)
+            
+#             y[:,:,0] += self.de**2 * self.da1.getVecArray(self.YJ)[:,:] \
+            y[:,:,0] += self.de**2 * self.da1.getVecArray(self.Jd)[:,:] \
+                      + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T1)[:,:] \
+                      + self.de**2 * 0.5*self.ht * self.da1.getVecArray(self.T2)[:,:]
+        
         # current density
         self.derivatives.laplace_vec(self.Ad, self.YJ, +1.)
 
@@ -425,6 +439,13 @@ cdef class PETScSolver(object):
                  - self.da1.getVecArray(self.Ah)[:,:] \
                  + self.ht * self.da1.getVecArray(self.T1)[:,:]
         
+        if self.de != 0.:
+            self.derivatives.arakawa_vec(self.Pa, self.Ja, self.T1)
+            
+            y[:,:,0] += self.de**2 * self.da1.getVecArray(self.Jp)[:,:] \
+                      - self.de**2 * self.da1.getVecArray(self.Jh)[:,:] \
+                      + self.de**2 * self.ht * self.da1.getVecArray(self.T1)[:,:]
+        
         # current density
         self.derivatives.laplace_vec(self.Ap, self.YJ, +1.)
 
@@ -445,4 +466,3 @@ cdef class PETScSolver(object):
                  - self.da1.getVecArray(self.Oh)[:,:] \
                  + self.ht * self.da1.getVecArray(self.T1)[:,:] \
                  + self.ht * self.da1.getVecArray(self.T2)[:,:]
-        

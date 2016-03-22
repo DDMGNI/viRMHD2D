@@ -132,18 +132,18 @@ class rmhd2d_ppc(rmhd2d):
                 self.time.setValue(0, current_time)
             
             # calculate initial guess
-            self.calculate_initial_guess(initial=itime==1)
+#             self.calculate_initial_guess(initial=itime==1)
 #             self.calculate_initial_guess(initial=True)
             
             # update history
             self.petsc_solver.update_history()
             
             # copy initial guess to x
-            x_arr = self.da4.getVecArray(self.x)
-            x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
-            x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
-            x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
-            x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
+#             x_arr = self.da4.getVecArray(self.x)
+#             x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+#             x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+#             x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+#             x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
             
             # solve
             i = 0
@@ -187,9 +187,6 @@ class rmhd2d_ppc(rmhd2d):
                 self.ksp.setTolerances(rtol=ksp_tol)
                 self.ksp.solve(self.b, self.dy)
 #                 self.ksp.solve(self.b, self.dx)
-                
-#                 if PETSc.COMM_WORLD.getRank() == 0:
-#                     print(" PC solve")
                 
                 self.petsc_precon.solve(self.dy, self.dx)
                 
