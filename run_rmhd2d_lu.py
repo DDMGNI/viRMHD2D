@@ -115,13 +115,10 @@ class rmhd2d_lu(rmhd2d):
     def run(self):
         
         for itime in range(1, self.nt+1):
-            current_time = self.ht*itime
-            
             if PETSc.COMM_WORLD.getRank() == 0:
                 localtime = time.asctime( time.localtime(time.time()) )
-                print("\nit = %4d,   t = %10.4f,   %s" % (itime, current_time, localtime) )
+                print("\nit = %4d,   t = %10.4f,   %s" % (itime, self.ht*itime, localtime) )
                 print
-                self.time.setValue(0, current_time)
             
             # calculate initial guess
             self.calculate_initial_guess(initial=itime==1)
@@ -158,8 +155,7 @@ class rmhd2d_lu(rmhd2d):
            
            
             # save to hdf5 file
-            if itime % self.nsave == 0 or itime == self.nt + 1:
-                self.save_to_hdf5(itime)
+            self.save_to_hdf5(itime)
             
         
     

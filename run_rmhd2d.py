@@ -69,11 +69,8 @@ class rmhd2d(object):
         self.hy = self.cfg['grid']['hy']                 # gridstep size in y
         
         # create time vector
-        self.time = PETSc.Vec().createMPI(1, PETSc.DECIDE, comm=PETSc.COMM_WORLD)
+        self.time = PETSc.Vec().createMPI(1, comm=PETSc.COMM_WORLD)
         self.time.setName('t')
-        
-        if PETSc.COMM_WORLD.getRank() == 0:
-            self.time.setValue(0, 0.0)
         
         # electron skin depth
         self.de = self.cfg['initial_data']['skin_depth']
@@ -81,7 +78,6 @@ class rmhd2d(object):
         # set global tolerance
         self.tolerance = self.cfg['solver']['petsc_snes_atol'] * self.nx * self.ny
         
-
         # create DA with single dof
         self.da1 = PETSc.DA().create(dim=2, dof=1,
                                     sizes=[self.nx, self.ny],
@@ -499,9 +495,6 @@ class rmhd2d(object):
         self.derivatives.dx(self.P, self.Vy, -1.)
         
         
-        # save timestep
-        self.hdf5_viewer.setTimestep(timestep)
-        self.hdf5_viewer(self.time)
         
         self.hdf5_viewer(self.A)
         self.hdf5_viewer(self.J)
@@ -512,6 +505,13 @@ class rmhd2d(object):
         self.hdf5_viewer(self.By)
         self.hdf5_viewer(self.Vx)
         self.hdf5_viewer(self.Vy)
+        if timestep % self.nsave == 0:
+            if PETSc.COMM_WORLD.getRank() == 0:
+                self.time.setValue(0, self.ht*timestep)
+            
+            # save timestep
+            self.hdf5_viewer.setTimestep(timestep // self.nsave)
+            self.hdf5_viewer(self.time)
         
 
     def check_jacobian(self):
