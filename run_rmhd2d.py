@@ -239,14 +239,20 @@ class rmhd2d(object):
                     
                 hdf5out.attrs[cfg_group + "." + cfg_item] = value
         
-        python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
-        
         hdf5out.attrs["solver.solver_mode"] = self.mode
-        hdf5out.attrs["initial_data.python_file"] = python_file.read()
         
-        python_file.close()
         
-        hdf5out.close()
+        if self.cfg["initial_data"]["python"] != None and self.cfg["initial_data"]["python"] != "":
+            python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
+            
+            hdf5out.attrs["initial_data.python_file"] = python_file.read()
+            
+            python_file.close()
+            
+            hdf5out.close()
+        else:
+            python_file = ""
+        
         
         # create HDF5 viewer
         self.hdf5_viewer = PETSc.ViewerHDF5().create(hdf5_filename,
