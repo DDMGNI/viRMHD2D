@@ -66,12 +66,12 @@ class rmhd2d_asm(rmhd2d):
         
         # initialise linear matrix
         self.M = self.da4.createMat()
-        self.M.setOption(self.M.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        self.M.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.M.setUp()
         
         # initialise Jacobian
         self.Jac = self.da4.createMat()
-        self.Jac.setOption(self.Jac.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        self.Jac.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Jac.setUp()
         
         # initialise matrixfree Jacobian
