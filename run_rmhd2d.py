@@ -207,8 +207,9 @@ class rmhd2d(object):
         # read initial data
         if self.cfg["io"]["hdf5_input"] != None and self.cfg["io"]["hdf5_input"] != "":
             if self.cfg["initial_data"]["python"] != None and self.cfg["initial_data"]["python"] != "":
-                print("WARNING: Both io.hdf5_input and initial_data.python are set!")
-                print("         Reading initial data from HDF5 file.")
+                if PETSc.COMM_WORLD.getRank() == 0:
+                    print("WARNING: Both io.hdf5_input and initial_data.python are set!")
+                    print("         Reading initial data from HDF5 file.")
             
             self.read_initial_data_from_hdf5()
         else:
@@ -350,7 +351,32 @@ class rmhd2d(object):
         
         if PETSc.COMM_WORLD.getRank() == 0:
             print("  Input:  %s" % hdf5_filename)
-
+            
+        hdf5in = h5py.File(hdf5_filename, "r", driver="mpio", comm=PETSc.COMM_WORLD.tompi4py())
+        
+        assert self.nx == hdf5in.attrs["grid.nx"]
+        assert self.ny == hdf5in.attrs["grid.ny"]
+        assert self.hx == hdf5in.attrs["grid.hx"]
+        assert self.hy == hdf5in.attrs["grid.hy"]
+        assert self.Lx == hdf5in.attrs["grid.Lx"]
+        assert self.Ly == hdf5in.attrs["grid.Ly"]
+        
+        timestep = len(hdf5in["t"][...].flatten()) - 1
+        
+        hdf5in.close()
+        
+        hdf5_viewer = PETSc.ViewerHDF5().create(hdf5_filename,
+                                          mode=PETSc.Viewer.Mode.READ,
+                                          comm=PETSc.COMM_WORLD)
+        
+        hdf5_viewer.setTimestep(timestep)
+        
+        self.A.load(hdf5_viewer)
+        self.J.load(hdf5_viewer)
+        self.P.load(hdf5_viewer)
+        self.O.load(hdf5_viewer)
+        
+        hdf5_viewer.destroy()
     
     
     def copy_x_from_da4_to_da1(self):
