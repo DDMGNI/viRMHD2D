@@ -5,7 +5,6 @@ Created on 21.03.2016
 '''
 
 import sys, petsc4py
-petsc4py.init(sys.argv)
 
 from petsc4py import PETSc
 
@@ -36,6 +35,8 @@ class rmhd2d(object):
         Constructor
         '''
         
+        petsc4py.init(sys.argv)
+
         if PETSc.COMM_WORLD.getRank() == 0:
             print("")
             print("Reduced MHD 2D")
@@ -685,25 +686,20 @@ class rmhd2d(object):
 
 if __name__ == '__main__':
 
-    OptDB = PETSc.Options()
- 
-#     parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
-#     parser.add_argument('-prof','--profiler', action='store_true', required=False,
-#                         help='Activate Profiler')
-#     parser.add_argument('-jac','--jacobian', action='store_true', required=False,
-#                         help='Check Jacobian')
-#     parser.add_argument('runfile', metavar='runconfig', type=str,
-#                         help='Run Configuration File')
+    parser = argparse.ArgumentParser(description='PETSc Reduced MHD Solver in 2D')
+    parser.add_argument('-c', '--config', metavar='<cfg_file>', type=str, required=True,
+                        help='Configuration File')
+    parser.add_argument('-m', '--mode', metavar='[asm, lu, ppc, split]', type=str, required=True,
+                        help='Solver Mode')
+    parser.add_argument('-p', '--profiler', action='store_true', required=False,
+                        help='Activate Profiler')
+    parser.add_argument('-j', '--jacobian', action='store_true', required=False,
+                        help='Check Jacobian')
 #     
-#     args = parser.parse_args()
+    args = parser.parse_args()
     
-#     if OptDB.hasName("h"):
-#         
-#         sys.exit(0)
-    
-    
-    runfile = OptDB.getString('c')
-    mode    = OptDB.getString('m')
+    runfile = args.config
+    mode    = args.mode
     
     if mode == "ppc":
         # physics based preconditioner
@@ -722,14 +718,13 @@ if __name__ == '__main__':
         from run_rmhd2d_lu import rmhd2d_lu
         petscvp = rmhd2d_lu(runfile)
 
-#     if args.profiler:
-    if OptDB.getBool('profiler', default=False):
+    if args.profiler:
         cProfile.runctx("petscvp.run()", globals(), locals(), "profile.prof")
         
         if PETSc.COMM_WORLD.getRank() == 0:
             s = pstats.Stats("profile.prof")
             s.strip_dirs().sort_stats("time").print_stats()
-    elif OptDB.getBool('jacobian', default=False):
+    elif args.jacobian:
         petscvp.check_jacobian()
     else:
         petscvp.run()
