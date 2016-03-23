@@ -43,14 +43,16 @@ class Diagnostics(object):
         self.Lx = self.hdf5.attrs["grid.Lx"]
         self.Ly = self.hdf5.attrs["grid.Ly"]
         
-        assert self.Lx == (self.xGrid[-1] - self.xGrid[0]) + (self.xGrid[1] - self.xGrid[0])
-        assert self.Ly == (self.yGrid[-1] - self.yGrid[0]) + (self.yGrid[1] - self.yGrid[0])
+        self.de = self.hdf5.attrs["initial_data.skin_depth"]
         
         assert self.nx == len(self.xGrid)
         assert self.ny == len(self.yGrid)
         
-        assert self.hx == self.xGrid[1] - self.xGrid[0]
-        assert self.hy == self.yGrid[1] - self.yGrid[0]
+        assert np.allclose(self.Lx, (self.xGrid[-1] - self.xGrid[0]) + (self.xGrid[1] - self.xGrid[0]), rtol=1e-08, atol=1e-10)
+        assert np.allclose(self.Ly, (self.yGrid[-1] - self.yGrid[0]) + (self.yGrid[1] - self.yGrid[0]), rtol=1e-08, atol=1e-10)
+        
+        assert np.allclose(self.hx, self.xGrid[1] - self.xGrid[0], rtol=1e-08, atol=1e-10)
+        assert np.allclose(self.hy, self.yGrid[1] - self.yGrid[0], rtol=1e-08, atol=1e-10)
         
         self.tMin = self.tGrid[ 1]
         self.tMax = self.tGrid[-1]
@@ -60,13 +62,17 @@ class Diagnostics(object):
         self.yMax = self.yGrid[-1]
         
         
-        print("nt = %i (%i)" % (self.nt, len(self.tGrid)) )
+        print("")
+        print("nt = %i" % (self.nt))
         print("nx = %i" % (self.nx))
         print("ny = %i" % (self.ny))
         print("")
         print("ht = %f" % (self.ht))
         print("hx = %f" % (self.hx))
         print("hy = %f" % (self.hy))
+        print("")
+        print("de = %f" % (self.de))
+        print("")
         print("")
         print("tGrid:")
         print(self.tGrid)
@@ -83,6 +89,7 @@ class Diagnostics(object):
         self.J  = np.zeros((self.nx, self.ny))
         self.P  = np.zeros((self.nx, self.ny))
         self.O  = np.zeros((self.nx, self.ny))
+        self.X  = np.zeros((self.nx, self.ny))
         
         self.Bx = np.zeros((self.nx, self.ny))
         self.By = np.zeros((self.nx, self.ny))
@@ -91,6 +98,7 @@ class Diagnostics(object):
         
         self.m_energy   = 0.0
         self.k_energy   = 0.0
+        self.i_energy   = 0.0
         self.energy     = 0.0
         self.psi_l2     = 0.0
         self.c_helicity = 0.0
@@ -117,32 +125,37 @@ class Diagnostics(object):
         
         
     def read_from_hdf5(self, iTime):
-        self.A  = self.hdf5['A' ][iTime,:,:].T
-        self.J  = self.hdf5['J' ][iTime,:,:].T
-        self.P  = self.hdf5['P' ][iTime,:,:].T
-        self.O  = self.hdf5['O' ][iTime,:,:].T
+        self.A[:,:]  = self.hdf5['A' ][iTime,:,:].T
+        self.J[:,:]  = self.hdf5['J' ][iTime,:,:].T
+        self.P[:,:]  = self.hdf5['P' ][iTime,:,:].T
+        self.O[:,:]  = self.hdf5['O' ][iTime,:,:].T
+
+        self.X[:,:]  = self.A + self.J * self.de**2
         
-        self.Bx = self.hdf5['Bx'][iTime,:,:].T
-        self.By = self.hdf5['By'][iTime,:,:].T
-        self.Vx = self.hdf5['Vx'][iTime,:,:].T
-        self.Vy = self.hdf5['Vy'][iTime,:,:].T
+        self.Bx[:,:] = self.hdf5['Bx'][iTime,:,:].T
+        self.By[:,:] = self.hdf5['By'][iTime,:,:].T
+        self.Vx[:,:] = self.hdf5['Vx'][iTime,:,:].T
+        self.Vy[:,:] = self.hdf5['Vy'][iTime,:,:].T
         
     
     def update_invariants(self, iTime):
         
+        
         self.m_energy   = np.sum( self.A * self.J )
         self.k_energy   = np.sum( self.P * self.O )
-        self.psi_l2     = np.sum( self.A * self.A )
-        self.c_helicity = np.sum( self.A * self.O )
-        self.m_helicity = np.sum( self.A )
+        self.i_energy   = np.sum( self.J * self.J )
+        self.psi_l2     = np.sum( self.X * self.X )
+        self.c_helicity = np.sum( self.X * self.O )
+        self.m_helicity = np.sum( self.X )
         
         self.m_energy *= 0.5 * self.hx * self.hy
         self.k_energy *= 0.5 * self.hx * self.hy
+        self.i_energy *= 0.5 * self.hx * self.hy * self.de**2
         self.psi_l2         *= self.hx * self.hy
         self.c_helicity     *= self.hx * self.hy
         self.m_helicity     *= self.hx * self.hy
         
-        self.energy   = self.m_energy + self.k_energy 
+        self.energy   = self.m_energy + self.k_energy + self.i_energy
     
         
         if iTime == 0 or iTime == 1:
