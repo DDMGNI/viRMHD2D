@@ -50,6 +50,7 @@ class PlotEnergy(object):
         self.psi_l2     = np.zeros(self.ntMax+1)
         self.c_helicity = np.zeros(self.ntMax+1)
         self.m_helicity = np.zeros(self.ntMax+1)
+        self.circulation= np.zeros(self.ntMax+1)
         
         
         print("")
@@ -78,6 +79,11 @@ class PlotEnergy(object):
                 self.m_helicity[i] = self.diagnostics.m_helicity
             else:
                 self.m_helicity[i] = self.diagnostics.m_helicity_error
+            
+            if self.diagnostics.plot_circulation:
+                self.circulation[i]= self.diagnostics.circulation
+            else:
+                self.circulation[i]= self.diagnostics.circulation_error
             
         
         # set up tick formatter
@@ -224,6 +230,41 @@ class PlotEnergy(object):
 #         filename = self.prefix + str('_m_helicity_%06d' % self.ntMax) + '.png'
 #         plt.savefig(filename, dpi=300)
         filename = self.prefix + str('_m_helicity_%06d' % self.ntMax) + '.pdf'
+        plt.savefig(filename)
+        
+        
+        # set up figure for circulation plot
+        self.figure5 = plt.figure(num=5, figsize=(16,4))
+        
+        # set up plot margins
+        plt.subplots_adjust(hspace=0.25, wspace=0.2)
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.9, bottom=0.25)
+        
+        axesC = plt.subplot(1,1,1)
+        axesC.plot(self.diagnostics.tGrid[0:ntMax+1:self.nPlot], self.circulation[0:ntMax+1:self.nPlot])
+        
+        axesC.set_xlabel('$t$', labelpad=15, fontsize=26)
+        axesC.set_xlim(self.diagnostics.tGrid[0], self.diagnostics.tGrid[ntMax])
+        
+        if self.diagnostics.plot_m_helicity:
+            axesC.set_ylabel('$C_{\omega} (t)$', labelpad=15, fontsize=24)
+            axesC.yaxis.set_label_coords(-0.075, 0.5)
+        else:
+            axesC.set_ylabel('$(C_{\omega} (t) - C_{\omega} (0)) / C_{\omega} (0)$', labelpad=15, fontsize=24)
+            axesC.yaxis.set_label_coords(-0.075, 0.37)
+        
+        axesC.yaxis.set_major_formatter(majorFormatter)
+        
+        for tick in axesC.xaxis.get_major_ticks():
+            tick.set_pad(12)
+        for tick in axesC.yaxis.get_major_ticks():
+            tick.set_pad(8)
+                
+        plt.draw()
+        
+#         filename = self.prefix + str('_m_helicity_%06d' % self.ntMax) + '.png'
+#         plt.savefig(filename, dpi=300)
+        filename = self.prefix + str('_circulation_%06d' % self.ntMax) + '.pdf'
         plt.savefig(filename)
         
         

@@ -103,21 +103,25 @@ class Diagnostics(object):
         self.psi_l2     = 0.0
         self.c_helicity = 0.0
         self.m_helicity = 0.0
+        self.circulation= 0.0
         
         self.energy_init      = 0.0
         self.psi_l2_init      = 0.0
         self.c_helicity_init  = 0.0
         self.m_helicity_init  = 0.0
+        self.circulation_init = 0.0
         
         self.energy_error     = 0.0
         self.psi_l2_error     = 0.0
         self.c_helicity_error = 0.0
         self.m_helicity_error = 0.0
+        self.circulation_error= 0.0
         
         self.plot_energy     = False
         self.plot_psi_l2     = False
         self.plot_c_helicity = False
         self.plot_m_helicity = False
+        self.plot_circulation= False
         
         self.read_from_hdf5(0)
         self.update_invariants(0)
@@ -147,6 +151,7 @@ class Diagnostics(object):
         self.psi_l2     = np.sum( self.X * self.X )
         self.c_helicity = np.sum( self.X * self.O )
         self.m_helicity = np.sum( self.X )
+        self.circulation= np.sum( self.O )
         
         self.m_energy *= 0.5 * self.hx * self.hy
         self.k_energy *= 0.5 * self.hx * self.hy
@@ -154,6 +159,7 @@ class Diagnostics(object):
         self.psi_l2         *= self.hx * self.hy
         self.c_helicity     *= self.hx * self.hy
         self.m_helicity     *= self.hx * self.hy
+        self.circulation    *= self.hx * self.hy
         
         self.energy   = self.m_energy + self.k_energy + self.i_energy
     
@@ -163,11 +169,13 @@ class Diagnostics(object):
             self.psi_l2_init      = self.psi_l2
             self.c_helicity_init  = self.c_helicity
             self.m_helicity_init  = self.m_helicity
+            self.circulation_init = self.circulation
             
             self.energy_error     = 0.0
             self.psi_l2_error     = 0.0
             self.c_helicity_error = 0.0
             self.m_helicity_error = 0.0
+            self.circulation_error= 0.0
         
             if np.abs(self.energy_init) < self.eps_plot:
                 self.plot_energy = True
@@ -181,9 +189,13 @@ class Diagnostics(object):
             if np.abs(self.m_helicity_init) < self.eps_plot:
                 self.plot_m_helicity = True
             
+            if np.abs(self.circulation_init) < self.eps_plot:
+                self.plot_circulation= True
+            
         else:
             self.energy_error     = ( self.energy     - self.energy_init     ) / self.energy_init
             self.psi_l2_error     = ( self.psi_l2     - self.psi_l2_init     ) / self.psi_l2_init
             self.c_helicity_error = ( self.c_helicity - self.c_helicity_init ) / self.c_helicity_init
             self.m_helicity_error = ( self.m_helicity - self.m_helicity_init ) / self.m_helicity_init
+            self.circulation_error= ( self.circulation- self.circulation_init) / self.circulation_init
         
