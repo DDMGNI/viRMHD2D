@@ -122,14 +122,14 @@ class rmhd2d_ppc(rmhd2d):
                 print
             
             # calculate initial guess
-#             self.calculate_initial_guess(initial=itime==1)
+            self.calculate_initial_guess(initial=itime==1)
 #             self.calculate_initial_guess(initial=True)
             
             # update history
             self.petsc_solver.update_history()
             
             # copy initial guess to x
-#             self.copy_x_from_da1_to_da4()
+            self.copy_x_from_da1_to_da4()
             
             # solve
             i = 0
