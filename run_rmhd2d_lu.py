@@ -20,11 +20,6 @@ from PETScPoissonCFD2                  import PETScPoisson
 from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 
-solver_package = 'superlu_dist'
-# solver_package = 'mumps'
-# solver_package = 'pastix'
-
-
 class rmhd2d_lu(rmhd2d):
     '''
     PETSc/Python Vlasov Poisson Solver in 1D.
@@ -94,7 +89,7 @@ class rmhd2d_lu(rmhd2d):
         self.snes.setFromOptions()
         self.snes.getKSP().setType('preonly')
         self.snes.getKSP().getPC().setType('lu')
-        self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
+        self.snes.getKSP().getPC().setFactorSolverPackage(self.solver_package)
 
         # update solution history
         self.petsc_solver.update_previous(self.x)

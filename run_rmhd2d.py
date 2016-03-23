@@ -20,11 +20,6 @@ from PETScDerivatives                    import PETScDerivatives
 from PETScPoissonCFD2                    import PETScPoisson
 
 
-solver_package = 'superlu_dist'
-# solver_package = 'mumps'
-# solver_package = 'pastix'
-
-
 class rmhd2d(object):
     '''
     PETSc/Python Reduced MHD Solver in 2D.
@@ -84,6 +79,9 @@ class rmhd2d(object):
         
         # set global tolerance
         self.tolerance = self.cfg['solver']['petsc_snes_atol'] * self.nx * self.ny
+        
+        # direct solver package
+        self.solver_package = self.cfg['solver']['lu_solver_package']
         
         # create DA with single dof
         self.da1 = PETSc.DA().create(dim=2, dof=1,

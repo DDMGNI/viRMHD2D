@@ -20,11 +20,6 @@ from PETScPoissonCFD2                  import PETScPoisson
 from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 
-# solver_package = 'superlu_dist'
-solver_package = 'mumps'
-# solver_package = 'pastix'
-
-
 class rmhd2d_asm(rmhd2d):
     '''
     PETSc/Python Vlasov Poisson Solver in 1D.
@@ -56,7 +51,7 @@ class rmhd2d_asm(rmhd2d):
         OptDB.setValue('pc_asm_overlap', 3)
         OptDB.setValue('sub_ksp_type', 'preonly')
         OptDB.setValue('sub_pc_type', 'lu')
-        OptDB.setValue('sub_pc_factor_mat_solver_package', 'mumps')
+        OptDB.setValue('sub_pc_factor_mat_solver_package', self.solver_package)
         
         OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
         OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])
@@ -99,7 +94,6 @@ class rmhd2d_asm(rmhd2d):
         self.snes.setFromOptions()
         self.snes.getKSP().setType('gmres')
         self.snes.getKSP().getPC().setType('asm')
-        self.snes.getKSP().getPC().setFactorSolverPackage(solver_package)
 
         # update solution history
         self.petsc_solver.update_previous(self.x)

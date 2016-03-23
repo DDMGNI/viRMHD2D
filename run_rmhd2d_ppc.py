@@ -23,11 +23,6 @@ from PETScNonlinearSolverArakawaJ1CFD2   import PETScSolver
 from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
 
 
-solver_package = 'superlu_dist'
-# solver_package = 'mumps'
-# solver_package = 'pastix'
-
-
 class rmhd2d_ppc(rmhd2d):
     '''
     PETSc/Python Reduced MHD Solver in 2D.
