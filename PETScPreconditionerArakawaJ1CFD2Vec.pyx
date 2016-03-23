@@ -350,7 +350,7 @@ cdef class PETScPreconditioner(object):
             self.derivatives.laplace_vec(Q, Y, -self.de**2)
         else:
             self.derivatives.arakawa_vec(self.Aa, Q, self.T)
-            self.derivatives.arakawa_vec(self.Aa, self.T, self.Y)
+            self.derivatives.arakawa_vec(self.Aa, self.T, Y)
             Y.scale(-0.5*self.ht*0.5*self.ht)
 
         Y.axpy(1., Q)
