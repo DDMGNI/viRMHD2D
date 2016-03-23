@@ -25,7 +25,7 @@ class rmhd2d(object):
     PETSc/Python Reduced MHD Solver in 2D.
     '''
         
-    def __init__(self, cfgfile):
+    def __init__(self, cfgfile, mode = "none"):
         '''
         Constructor
         '''
@@ -39,7 +39,7 @@ class rmhd2d(object):
             print("")
 
         # solver mode
-        self.mode = "none"
+        self.mode = mode
         
         # set run id to timestamp
         self.run_id = datetime.datetime.fromtimestamp(time.time()).strftime("%y%m%d%H%M%S")
@@ -240,6 +240,7 @@ class rmhd2d(object):
         
         python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
         
+        hdf5out.attrs["solver.solver_mode"] = self.mode
         hdf5out.attrs["initial_data.python_file"] = python_file.read()
         
         python_file.close()

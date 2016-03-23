@@ -34,10 +34,8 @@ class rmhd2d_split(rmhd2d):
         Constructor
         '''
         
-        super().__init__(cfgfile)#rmhd2d_ppc, self
+        super().__init__(cfgfile, mode = "split")
         
-        # solver mode
-        self.mode = "split"
         
         OptDB = PETSc.Options()
         

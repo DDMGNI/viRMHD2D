@@ -34,10 +34,8 @@ class rmhd2d_ppc(rmhd2d):
         Constructor
         '''
         
-        super().__init__(cfgfile)#rmhd2d_ppc, self
+        super().__init__(cfgfile, mode = "ppc")
         
-        # solver mode
-        self.mode = "ppc"
         
         OptDB = PETSc.Options()
         
