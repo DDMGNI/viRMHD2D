@@ -182,7 +182,7 @@ class rmhd2d(object):
         
         # initialise Poisson matrix
         self.Pm = self.da1.createMat()
-        self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        self.Pm.setOption(PETSc.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
         self.Pm.setNullSpace(self.poisson_nullspace)
         
