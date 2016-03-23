@@ -115,7 +115,7 @@ cdef class PETScPreconditioner(object):
         # initialise rhs and matrix for Poisson solver
         self.Pb = self.da1.createGlobalVec()
         self.Pm = self.da1.createMat()
-        self.Pm.setOption(PETSc.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        self.Pm.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
         self.Pm.setUp()
         self.Pm.setNullSpace(self.poisson_nullspace)
         
@@ -143,7 +143,7 @@ cdef class PETScPreconditioner(object):
         self.parabol_ksp.setFromOptions()
         if self.de != 0.:
             self.QA = self.da1.createMat()
-            self.QA.setOption(PETSc.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+            self.QA.setOption(PETSc.Mat.Option.NEW_NONZERO_ALLOCATION_ERR, False)
             self.QA.setUp()
             self.formMat(self.QA)
         
