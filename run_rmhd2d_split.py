@@ -262,37 +262,3 @@ class rmhd2d_split(rmhd2d):
             print("Solver runtime: %f seconds." % run_time)
             print()
             
-        
-    
-    
-
-    
-
-if __name__ == '__main__':
-
-    OptDB = PETSc.Options()
- 
-#     parser = argparse.ArgumentParser(description='PETSc MHD Solver in 2D')
-#     parser.add_argument('-prof','--profiler', action='store_true', required=False,
-#                         help='Activate Profiler')
-#     parser.add_argument('-jac','--jacobian', action='store_true', required=False,
-#                         help='Check Jacobian')
-#     parser.add_argument('runfile', metavar='runconfig', type=str,
-#                         help='Run Configuration File')
-#     
-#     args = parser.parse_args()
-    
-    runfile = OptDB.getString('c')
-    petscvp = petscMHD2D(runfile)
-
-#     if args.profiler:
-    if OptDB.getBool('profiler', default=False):
-        cProfile.runctx("petscvp.run()", globals(), locals(), "profile.prof")
-        
-        if PETSc.COMM_WORLD.getRank() == 0:
-            s = pstats.Stats("profile.prof")
-            s.strip_dirs().sort_stats("time").print_stats()
-    elif OptDB.getBool('jacobian', default=False):
-        petscvp.check_jacobian()
-    else:
-        petscvp.run()
