@@ -9,10 +9,7 @@ from run_rmhd2d import rmhd2d
 import numpy as np
 from numpy import abs
 
-import argparse, sys, time
-import pstats, cProfile
-
-from config import Config
+import time
 
 from petsc4py import PETSc
 
@@ -25,7 +22,7 @@ from PETScPreconditionerArakawaJ1CFD2DOF2Vec import PETScPreconditioner
 
 class rmhd2d_split(rmhd2d):
     '''
-    PETSc/Python Reduced MHD Solver in 2D.
+    PETSc/Python Reduced MHD Solver in 2D using split solver.
     '''
 
 

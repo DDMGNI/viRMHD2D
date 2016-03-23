@@ -8,12 +8,7 @@ from run_rmhd2d import rmhd2d
 
 from petsc4py import PETSc
 
-import numpy as np
-
-import argparse, time
-import pstats, cProfile
-
-from config import Config
+import time
 
 from PETScDerivatives                  import PETScDerivatives
 from PETScPoissonCFD2                  import PETScPoisson
@@ -22,7 +17,7 @@ from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 class rmhd2d_lu(rmhd2d):
     '''
-    PETSc/Python Vlasov Poisson Solver in 1D.
+    PETSc/Python Reduced MHD Solver in 2D using direct solver.
     '''
 
 

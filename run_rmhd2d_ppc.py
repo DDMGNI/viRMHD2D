@@ -9,10 +9,7 @@ from run_rmhd2d import rmhd2d
 import numpy as np
 from numpy import abs
 
-import argparse, sys, time
-import pstats, cProfile
-
-from config import Config
+import time
 
 from petsc4py import PETSc
 
@@ -25,7 +22,7 @@ from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
 
 class rmhd2d_ppc(rmhd2d):
     '''
-    PETSc/Python Reduced MHD Solver in 2D.
+    PETSc/Python Reduced MHD Solver in 2D using physics based preconditioner.
     '''
 
 
@@ -132,11 +129,7 @@ class rmhd2d_ppc(rmhd2d):
             self.petsc_solver.update_history()
             
             # copy initial guess to x
-#             x_arr = self.da4.getVecArray(self.x)
-#             x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
-#             x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
-#             x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
-#             x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
+#             self.copy_x_from_da1_to_da4()
             
             # solve
             i = 0
