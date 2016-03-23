@@ -108,12 +108,9 @@ class rmhd2d_ppc(rmhd2d):
         
         run_time = time.time()
         
-        alpha = 1.5 # 64x64
-#         alpha = 1.1  # 128x128
-#         alpha = 1.5  # 256x256
+        alpha = 1.5
         gamma = 0.9
-#         ksp_max = 1E-1  # 64x64, 128x128
-        ksp_max = 1E-3 # 256x256
+        ksp_rtol_max = 1E-3
         
         for itime in range(1, self.nt+1):
             if PETSc.COMM_WORLD.getRank() == 0:
@@ -122,14 +119,16 @@ class rmhd2d_ppc(rmhd2d):
                 print
             
             # calculate initial guess
-            self.calculate_initial_guess(initial=itime==1)
-#             self.calculate_initial_guess(initial=True)
+            if self.cfg['solver']['petsc_snes_initial_guess']:
+                self.calculate_initial_guess(initial=itime==1)
+#                 self.calculate_initial_guess(initial=True)
             
             # update history
             self.petsc_solver.update_history()
             
             # copy initial guess to x
-            self.copy_x_from_da1_to_da4()
+            if self.cfg['solver']['petsc_snes_initial_guess']:
+                self.copy_x_from_da1_to_da4()
             
             # solve
             i = 0
@@ -141,7 +140,6 @@ class rmhd2d_ppc(rmhd2d):
             prev_norm = pred_norm
             
             tolerance = self.tolerance + self.cfg['solver']['petsc_snes_rtol'] * pred_norm 
-#             print("tolerance:", self.tolerance, self.cfg['solver']['petsc_snes_rtol'] * pred_norm, tolerance)
             
             if PETSc.COMM_WORLD.getRank() == 0:
                 print("  Nonlinear Solver Iteration %i:                           residual = %22.16E" % (i, pred_norm))
@@ -154,25 +152,25 @@ class rmhd2d_ppc(rmhd2d):
                 self.b.scale(-1.)
 #                 self.dy.set(0.)
                 self.b.copy(self.dy)
-
-                if i == 1:
-                    zeta_A  = 0.
-                    zeta_B  = 0.
-                    zeta_C  = 0.
-                    zeta_D  = 0.
-                    ksp_tol = self.cfg['solver']['petsc_ksp_rtol']
-#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=3)
-                else:
-                    zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
-                    zeta_B  = np.power(ksp_tol, alpha)
-                    zeta_C  = np.min([ksp_max, np.max(zeta_A, zeta_B)])
-                    zeta_D  = gamma * tolerance / pred_norm
-                    ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
-#                     self.ksp.setTolerances(rtol=ksp_tol, max_it=5)
                 
-                self.ksp.setTolerances(rtol=ksp_tol)
+                if self.cfg['solver']['petsc_ksp_adapt_rol']:
+                    if i == 1:
+                        zeta_A  = 0.
+                        zeta_B  = 0.
+                        zeta_C  = 0.
+                        zeta_D  = 0.
+                        ksp_tol = self.cfg['solver']['petsc_ksp_rtol']
+                    else:
+                        zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
+                        zeta_B  = np.power(ksp_tol, alpha)
+                        zeta_C  = np.min([ksp_rtol_max, np.max(zeta_A, zeta_B)])
+                        zeta_D  = gamma * tolerance / pred_norm
+                        ksp_tol = np.min([ksp_rtol_max, np.max(zeta_C, zeta_D)])
+                    
+                    self.ksp.setTolerances(rtol=ksp_tol)
+                
+                # solve linear system
                 self.ksp.solve(self.b, self.dy)
-#                 self.ksp.solve(self.b, self.dx)
                 
                 self.petsc_precon.solve(self.dy, self.dx)
                 
