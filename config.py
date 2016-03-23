@@ -16,46 +16,47 @@ class Config(ConfigObj):
     '''
 
 
-    def __init__(self, infile, file_error=True):
+    def __init__(self, infile, create_default=False):
         '''
         Constructor
         '''
         
         self.runspec = 'runspec.cfg'
         
-        ConfigObj.__init__(self, infile=infile, configspec=self.runspec, file_error=file_error)
+        ConfigObj.__init__(self, infile=infile, configspec=self.runspec, create_empty=create_default)
         
         self.validator = Validator()
         self.valid     = self.validate(self.validator, copy=True)
         
         
-        if self['grid']['x1'] != self['grid']['x2']:
-            self['grid']['Lx'] = self['grid']['x2'] - self['grid']['x1']
+        if create_default:
+            # create default config file
+            self.write()
+            
         else:
-            self['grid']['x1'] = 0.0
-            self['grid']['x2'] = self['grid']['Lx']
-        
-        if self['grid']['y1'] != self['grid']['y2']:
-            self['grid']['Ly'] = self['grid']['y2'] - self['grid']['y1']
-        else:
-            self['grid']['y1'] = 0.0
-            self['grid']['y2'] = self['grid']['Ly']
-        
-        
-    
-    def write_default_config(self):
-        '''
-        Reads default values from runspec file and creates a default
-        configuration file in run.cfg.default.
-        '''
-        
-        self.write()
+            # compute some additional grid properties
+            
+            if self['grid']['x1'] != self['grid']['x2']:
+                self['grid']['Lx'] = self['grid']['x2'] - self['grid']['x1']
+            else:
+                self['grid']['x1'] = 0.0
+                self['grid']['x2'] = self['grid']['Lx']
+            
+            if self['grid']['y1'] != self['grid']['y2']:
+                self['grid']['Ly'] = self['grid']['y2'] - self['grid']['y1']
+            else:
+                self['grid']['y1'] = 0.0
+                self['grid']['y2'] = self['grid']['Ly']
+            
+            self['grid']['hx'] = self['grid']['Lx'] / self['grid']['nx']
+            self['grid']['hy'] = self['grid']['Ly'] / self['grid']['ny']
         
     
 
 if __name__ == '__main__':
     '''
-    Instantiates a Config object and creates a default configuration file.
+    Instantiates a Config object, reads default values from runspec.cfg file
+    and creates a default configuration file in run.cfg.default.
     '''
     
     filename = 'run.cfg.default'
@@ -63,6 +64,5 @@ if __name__ == '__main__':
     if os.path.exists(filename):
         os.remove(filename)
     
-    config = Config(filename, file_error=False)
-    config.write_default_config()
+    config = Config(filename, create_default=True)
 

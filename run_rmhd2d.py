@@ -54,19 +54,19 @@ class rmhd2d(object):
         self.nsave = self.cfg['io']['nsave']             # save only every nsave'th timestep
         
         # grid setup
-        self.nx    = self.cfg['grid']['nx']              # number of points in x
-        self.ny    = self.cfg['grid']['ny']              # number of points in y
+        self.nx = self.cfg['grid']['nx']                 # number of points in x
+        self.ny = self.cfg['grid']['ny']                 # number of points in y
         
-        Lx   = self.cfg['grid']['Lx']                    # spatial domain in x
-        x1   = self.cfg['grid']['x1']                    # 
-        x2   = self.cfg['grid']['x2']                    # 
+        self.Lx = self.cfg['grid']['Lx']                 # spatial domain in x
+        x1      = self.cfg['grid']['x1']                 # 
+        x2      = self.cfg['grid']['x2']                 # 
         
-        Ly   = self.cfg['grid']['Ly']                    # spatial domain in y
-        y1   = self.cfg['grid']['y1']                    # 
-        y2   = self.cfg['grid']['y2']                    # 
+        self.Ly = self.cfg['grid']['Ly']                 # spatial domain in y
+        y1      = self.cfg['grid']['y1']                 # 
+        y2      = self.cfg['grid']['y2']                 # 
         
-        self.hx = Lx / self.nx                       # gridstep size in x
-        self.hy = Ly / self.ny                       # gridstep size in y
+        self.hx = self.cfg['grid']['hx']                 # gridstep size in x
+        self.hy = self.cfg['grid']['hy']                 # gridstep size in y
         
         # create time vector
         self.time = PETSc.Vec().createMPI(1, PETSc.DECIDE, comm=PETSc.COMM_WORLD)
