@@ -185,7 +185,7 @@ class rmhd2d_ppc(rmhd2d):
                 pred_norm = self.f.norm()
 
                 if PETSc.COMM_WORLD.getRank() == 0:
-                    print("  Nonlinear Solver Iteration %i: %5i GMRES iterations,   residual = %22.16E,   tolerance = %22.16E" % (i, self.ksp.getIterationNumber(), pred_norm, ksp_tol) )
+                    print("  Nonlinear Solver Iteration %i: %5i GMRES iterations,   residual = %22.16E,   tolerance = %22.16E" % (i, self.ksp.getIterationNumber(), pred_norm, self.ksp.getTolerances()[0]) )
                 
                 if abs(prev_norm - pred_norm) < self.cfg['solver']['petsc_snes_stol'] or pred_norm < tolerance or i >= self.cfg['solver']['petsc_snes_max_iter']:
                     break
