@@ -26,26 +26,31 @@ class Diagnostics(object):
         self.eps_plot = 1E-12
 
         
-        self.tGrid = self.hdf5['t'][:,0]
+        self.tGrid = self.hdf5['t'][:].flatten()
         self.xGrid = self.hdf5['x'][:]
         self.yGrid = self.hdf5['y'][:]
         
         self.nt = len(self.tGrid)-1
         
-        if self.nt == 1:
-            self.ht = 0.
-        else:
-            self.ht = self.tGrid[2] - self.tGrid[1]
-        
-        self.Lx = (self.xGrid[-1] - self.xGrid[0]) + (self.xGrid[1] - self.xGrid[0])
-        self.Ly = (self.yGrid[-1] - self.yGrid[0]) + (self.yGrid[1] - self.yGrid[0])
-        
-        self.nx = len(self.xGrid)
-        self.ny = len(self.yGrid)
+        self.nx = self.hdf5.attrs["grid.nx"]
+        self.ny = self.hdf5.attrs["grid.ny"]
         self.n  = self.nx * self.ny
         
-        self.hx = self.xGrid[1] - self.xGrid[0]
-        self.hy = self.yGrid[1] - self.yGrid[0]
+        self.ht = self.hdf5.attrs["grid.ht"]
+        self.hx = self.hdf5.attrs["grid.hx"]
+        self.hy = self.hdf5.attrs["grid.hy"]
+
+        self.Lx = self.hdf5.attrs["grid.Lx"]
+        self.Ly = self.hdf5.attrs["grid.Ly"]
+        
+        assert self.Lx == (self.xGrid[-1] - self.xGrid[0]) + (self.xGrid[1] - self.xGrid[0])
+        assert self.Ly == (self.yGrid[-1] - self.yGrid[0]) + (self.yGrid[1] - self.yGrid[0])
+        
+        assert self.nx == len(self.xGrid)
+        assert self.ny == len(self.yGrid)
+        
+        assert self.hx == self.xGrid[1] - self.xGrid[0]
+        assert self.hy == self.yGrid[1] - self.yGrid[0]
         
         self.tMin = self.tGrid[ 1]
         self.tMax = self.tGrid[-1]
@@ -58,20 +63,20 @@ class Diagnostics(object):
         print("nt = %i (%i)" % (self.nt, len(self.tGrid)) )
         print("nx = %i" % (self.nx))
         print("ny = %i" % (self.ny))
-        print
+        print("")
         print("ht = %f" % (self.ht))
         print("hx = %f" % (self.hx))
         print("hy = %f" % (self.hy))
-        print
+        print("")
         print("tGrid:")
         print(self.tGrid)
-        print
+        print("")
         print("xGrid:")
         print(self.xGrid)
-        print
+        print("")
         print("yGrid:")
         print(self.yGrid)
-        print
+        print("")
         
         
         self.A  = np.zeros((self.nx, self.ny))
