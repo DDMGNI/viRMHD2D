@@ -19,9 +19,6 @@ from config import Config
 
 from PETScDerivatives                    import PETScDerivatives
 from PETScPoissonCFD2                    import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2   import PETScSolver
-from PETScPreconditionerArakawaJ1CFD2    import PETScPreconditioner
-# from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
 
 
 solver_package = 'superlu_dist'
@@ -39,11 +36,20 @@ class rmhd2d(object):
         Constructor
         '''
         
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("")
+            print("Reduced MHD 2D")
+            print("==============")
+            print("")
+
         # solver mode
         self.mode = "none"
         
         # set run id to timestamp
         self.run_id = datetime.datetime.fromtimestamp(time.time()).strftime("%y%m%d%H%M%S")
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("  Config: %s" % cfgfile)
         
         # load run config file
         self.cfg = Config(cfgfile)
@@ -164,7 +170,7 @@ class rmhd2d(object):
         self.Vy.setName('Vy')
         
         
-        # initialise nullspace basis vectors
+        # initialise nullspace
         self.x0.set(0.)
         x0_arr = self.da4.getVecArray(self.x0)[...]
         
@@ -175,13 +181,195 @@ class rmhd2d(object):
         self.solver_nullspace  = PETSc.NullSpace().create(constant=False, vectors=(self.x0,))
         self.poisson_nullspace = PETSc.NullSpace().create(constant=True)
         
+        # initialise Poisson matrix
+        self.Pm = self.da1.createMat()
+        self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
+        self.Pm.setUp()
+        self.Pm.setNullSpace(self.poisson_nullspace)
         
-#         # place holder for Poisson solver
-#         self.poisson_ksp = None
+        # create Poisson solver object
+        self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
+        
+        # setup linear Poisson solver
+        self.poisson_ksp = PETSc.KSP().create()
+        self.poisson_ksp.setFromOptions()
+        self.poisson_ksp.setOperators(self.Pm)
+        self.poisson_ksp.setTolerances(rtol=self.cfg['solver']['poisson_ksp_rtol'],
+                                       atol=self.cfg['solver']['poisson_ksp_atol'],
+                                       max_it=self.cfg['solver']['poisson_ksp_max_iter'])
+        self.poisson_ksp.setType('cg')
+        self.poisson_ksp.getPC().setType('hypre')
+        
+        self.petsc_poisson.formMat(self.Pm)
         
         # create derivatives object
         self.derivatives = PETScDerivatives(self.da1, self.nx, self.ny, self.ht, self.hx, self.hy)
         
+        # read initial data
+        if self.cfg["io"]["hdf5_input"] != None and self.cfg["io"]["hdf5_input"] != "":
+            if self.cfg["initial_data"]["python"] != None and self.cfg["initial_data"]["python"] != "":
+                print("WARNING: Both io.hdf5_input and initial_data.python are set!")
+                print("         Reading initial data from HDF5 file.")
+            
+            self.read_initial_data_from_hdf5()
+        else:
+            self.read_initial_data_from_python()
+        
+        # copy initial data vectors to x
+        self.copy_x_from_da1_to_da4()
+        
+        # create HDF5 output file and write parameters
+        hdf5_filename = self.cfg['io']['hdf5_output']
+        last_dot      = hdf5_filename.rfind('.')
+        hdf5_filename = hdf5_filename[:last_dot] + "." + str(self.run_id) + hdf5_filename[last_dot:]
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("  Output: %s" % hdf5_filename)
+        
+        hdf5out = h5py.File(hdf5_filename, "w", driver="mpio", comm=PETSc.COMM_WORLD.tompi4py())
+        
+        hdf5out.attrs["run_id"] = self.run_id
+        
+        for cfg_group in self.cfg:
+            for cfg_item in self.cfg[cfg_group]:
+                if self.cfg[cfg_group][cfg_item] != None:
+                    value = self.cfg[cfg_group][cfg_item]
+                else:
+                    value = ""
+                    
+                hdf5out.attrs[cfg_group + "." + cfg_item] = value
+        
+        python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
+        
+        hdf5out.attrs["initial_data.python_file"] = python_file.read()
+        
+        python_file.close()
+        
+        hdf5out.close()
+        
+        # create HDF5 viewer
+        self.hdf5_viewer = PETSc.ViewerHDF5().create(hdf5_filename,
+                                          mode=PETSc.Viewer.Mode.APPEND,
+                                          comm=PETSc.COMM_WORLD)
+        
+        self.hdf5_viewer.pushGroup("/")
+        
+        
+        # write grid data to hdf5 file
+        coords_x = self.dax.getCoordinates()
+        coords_y = self.day.getCoordinates()
+        
+        coords_x.setName('x')
+        coords_y.setName('y')
+
+        self.hdf5_viewer(coords_x)
+        self.hdf5_viewer(coords_y)
+        
+        
+        # write initial data to hdf5 file
+        self.save_to_hdf5(0)
+        
+        # output some more information
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("")
+            print("  nt = %i" % (self.nt))
+            print("  nx = %i" % (self.nx))
+            print("  ny = %i" % (self.ny))
+            print("")
+            print("  ht = %f" % (self.ht))
+            print("  hx = %f" % (self.hx))
+            print("  hy = %f" % (self.hy))
+            print("")
+
+
+    def __del__(self):
+        self.poisson_ksp.destroy()
+        self.Pm.destroy()
+        self.hdf5_viewer.destroy()
+
+
+    def run(self):
+        raise NotImplementedError
+
+    
+    def read_initial_data_from_python(self):
+        python_module = "runs." + self.cfg['initial_data']['python']
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("  Input:  %s" % python_module)
+        
+        # get whole grid
+        xGrid, yGrid = self.get_coordinate_vectors_from_das()
+        
+        # set initial data
+        (xs, xe), (ys, ye) = self.da1.getRanges()
+        
+        x_arr = self.da4.getVecArray(self.x)
+        A_arr = self.da1.getVecArray(self.A)
+        P_arr = self.da1.getVecArray(self.P)
+        
+        init_data = __import__(python_module, globals(), locals(), ['magnetic_A', 'velocity_P'], 0)
+        
+        for i in range(xs, xe):
+            for j in range(ys, ye):
+                A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], self.Lx, self.Ly)
+                P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], self.Lx, self.Ly)
+                
+        # apply Fourier filtering to magnetic potential 
+        self.fourier_filter_magnetic_potential()
+        
+        # compute current and vorticity
+        self.derivatives.laplace_vec(self.A, self.J, -1.)
+        self.derivatives.laplace_vec(self.P, self.O, -1.)
+        
+        J_arr = self.da1.getVecArray(self.J)
+        O_arr = self.da1.getVecArray(self.O)
+        
+        # add perturbations
+        for i in range(xs, xe):
+            for j in range(ys, ye):
+                J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], self.Lx, self.Ly)
+                O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], self.Lx, self.Ly)
+        
+        
+        # solve for consistent initial A
+        self.A.set(0.)
+        self.petsc_poisson.formRHS(self.J, self.Pb)
+        self.poisson_nullspace.remove(self.Pb)
+        self.poisson_ksp.solve(self.Pb, self.A)
+        
+        # solve for consistent initial psi
+        self.P.set(0.)
+        self.petsc_poisson.formRHS(self.O, self.Pb)
+        self.poisson_nullspace.remove(self.Pb)
+        self.poisson_ksp.solve(self.Pb, self.P)
+    
+    
+    def read_initial_data_from_hdf5(self):
+        hdf5_filename = self.cfg["io"]["hdf5_input"]
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("  Input:  %s" % hdf5_filename)
+
+    
+    
+    def copy_x_from_da4_to_da1(self):
+        x_arr = self.da4.getVecArray(self.x)
+        self.da1.getVecArray(self.A)[:,:] = x_arr[:,:,0]
+        self.da1.getVecArray(self.J)[:,:] = x_arr[:,:,1]
+        self.da1.getVecArray(self.P)[:,:] = x_arr[:,:,2]
+        self.da1.getVecArray(self.O)[:,:] = x_arr[:,:,3]
+
+
+    def copy_x_from_da1_to_da4(self):
+        x_arr = self.da4.getVecArray(self.x)
+        x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
+        x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
+        x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
+        x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
+    
+    
+    def get_coordinate_vectors_from_das(self):
         # get coordinate vectors
         coords_x = self.dax.getCoordinates()
         coords_y = self.day.getCoordinates()
@@ -207,25 +395,17 @@ class rmhd2d(object):
           
         scatter.destroy()
         yVec.destroy()
-
-        # set initial data
-        (xs, xe), (ys, ye) = self.da1.getRanges()
         
-        x_arr = self.da4.getVecArray(self.x)
-        A_arr = self.da1.getVecArray(self.A)
-        P_arr = self.da1.getVecArray(self.P)
-        
-        init_data = __import__("runs." + self.cfg['initial_data']['python'], globals(), locals(), ['magnetic_A', 'velocity_P'], 0)
-        
-        for i in range(xs, xe):
-            for j in range(ys, ye):
-                A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], Lx, Ly)
-                P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], Lx, Ly)
-        
+        return xGrid, yGrid
+    
+    
+    def fourier_filter_magnetic_potential(self):
         # Fourier Filtering
         self.nfourier = self.cfg['initial_data']['nfourier']
           
         if self.nfourier >= 0:
+            (xs, xe), (ys, ye) = self.da1.getRanges()
+            
             # obtain whole A vector everywhere
             scatter, Aglobal = PETSc.Scatter.toAll(self.A)
             
@@ -247,137 +427,9 @@ class rmhd2d(object):
 #             Afft[:,0] = 0.
             Afft[:,self.nfourier+1:] = 0.
             
-            A_arr = self.da1.getVecArray(self.A)
-            A_arr[:,:] = irfft(Afft).T[xs:xe, ys:ye] 
-            
-        
-        # compute current and vorticity
-        self.derivatives.laplace_vec(self.A, self.J, -1.)
-        self.derivatives.laplace_vec(self.P, self.O, -1.)
-        
-        J_arr = self.da1.getVecArray(self.J)
-        O_arr = self.da1.getVecArray(self.O)
-        
-        # add perturbations
-        for i in range(xs, xe):
-            for j in range(ys, ye):
-                J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], Lx, Ly)
-                O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], Lx, Ly)
-        
-        
-        # initialise Poisson matrix
-        self.Pm = self.da1.createMat()
-        self.Pm.setOption(self.Pm.Option.NEW_NONZERO_ALLOCATION_ERR, False)
-        self.Pm.setUp()
-        self.Pm.setNullSpace(self.poisson_nullspace)
-        
-        # create Poisson solver object
-        self.petsc_poisson  = PETScPoisson(self.da1, self.nx, self.ny, self.hx, self.hy)
-        
-        # setup linear Poisson solver
-        self.poisson_ksp = PETSc.KSP().create()
-#         self.poisson_ksp.setDM(self.da1)
-        self.poisson_ksp.setFromOptions()
-        self.poisson_ksp.setOperators(self.Pm)
-#         self.poisson_ksp.setTolerances(rtol=1E-15, atol=1E-16)
-        self.poisson_ksp.setTolerances(rtol=self.cfg['solver']['poisson_ksp_rtol'],
-                                       atol=self.cfg['solver']['poisson_ksp_atol'],
-                                       max_it=self.cfg['solver']['poisson_ksp_max_iter'])
-        self.poisson_ksp.setType('cg')
-        self.poisson_ksp.getPC().setType('hypre')
-        
-        self.petsc_poisson.formMat(self.Pm)
-        
-        # solve for consistent initial A
-        self.A.set(0.)
-        self.petsc_poisson.formRHS(self.J, self.Pb)
-        self.poisson_nullspace.remove(self.Pb)
-        self.poisson_ksp.solve(self.Pb, self.A)
-        
-        # solve for consistent initial psi
-        self.P.set(0.)
-        self.petsc_poisson.formRHS(self.O, self.Pb)
-        self.poisson_nullspace.remove(self.Pb)
-        self.poisson_ksp.solve(self.Pb, self.P)
-        
-        # copy initial data vectors to x
-        x_arr = self.da4.getVecArray(self.x)
-        x_arr[:,:,0] = self.da1.getVecArray(self.A)[:,:]
-        x_arr[:,:,1] = self.da1.getVecArray(self.J)[:,:]
-        x_arr[:,:,2] = self.da1.getVecArray(self.P)[:,:]
-        x_arr[:,:,3] = self.da1.getVecArray(self.O)[:,:]
-        
-        # create HDF5 output file
-        hdf5out = h5py.File(self.cfg['io']['hdf5_output'], "w", driver="mpio", comm=PETSc.COMM_WORLD.tompi4py())
-        
-#         hdf5_params = hdf5out.create_group("parameters")
-#         hdf5_params.attrs["run_id"] = self.run_id
-#         
-#         for cfg_group in self.cfg:
-#             hdf5_group = hdf5_params.create_group(cfg_group)
-#             
-#             for cfg_item in self.cfg[cfg_group]:
-#                 hdf5_group.attrs[cfg_item] = self.cfg[cfg_group][cfg_item]
-#         
-#         python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
-#         
-#         hdf5_params["initial_data"].attrs["python_file"] = python_file.read()
-#         
-#         python_file.close()
-        
-        hdf5out.attrs["run_id"] = self.run_id
-        
-        for cfg_group in self.cfg:
-            for cfg_item in self.cfg[cfg_group]:
-                if self.cfg[cfg_group][cfg_item] != None:
-                    value = self.cfg[cfg_group][cfg_item]
-                else:
-                    value = ""
-                    
-                print(cfg_group + "." + cfg_item, value)
-                hdf5out.attrs[cfg_group + "." + cfg_item] = value
-        
-        python_file = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
-        
-        hdf5out.attrs["initial_data.python_file"] = python_file.read()
-        
-        python_file.close()
-        
-        hdf5out.close()
-        
-        # create HDF5 viewer
-        self.hdf5_viewer = PETSc.ViewerHDF5().create(self.cfg['io']['hdf5_output'],
-                                          mode=PETSc.Viewer.Mode.APPEND,
-                                          comm=PETSc.COMM_WORLD)
-        
-        self.hdf5_viewer.pushGroup("/")
-        
-        
-        # write grid data to hdf5 file
-        coords_x = self.dax.getCoordinates()
-        coords_y = self.day.getCoordinates()
-        
-        coords_x.setName('x')
-        coords_y.setName('y')
-
-        self.hdf5_viewer(coords_x)
-        self.hdf5_viewer(coords_y)
-        
-        
-        # write initial data to hdf5 file
-        self.save_to_hdf5(0)
-
-
-    def __del__(self):
-        self.poisson_ksp.destroy()
-        self.Pm.destroy()
-        self.hdf5_viewer.destroy()
-
-
-    def run(self):
-        raise NotImplementedError
-
-
+            self.da1.getVecArray(self.A)[:,:] = irfft(Afft).T[xs:xe, ys:ye] 
+    
+    
     def calculate_initial_guess(self, initial=False):
         
         # set some variables for hermite extrapolation
@@ -474,44 +526,32 @@ class rmhd2d(object):
         
         
     def save_to_hdf5(self, timestep):
-        (xs, xe), (ys, ye) = self.da1.getRanges()
-        
-        # copy solution to A, J, psi, omega vectors
-        x_arr = self.da4.getVecArray(self.x)
-        A_arr = self.da1.getVecArray(self.A)
-        J_arr = self.da1.getVecArray(self.J)
-        P_arr = self.da1.getVecArray(self.P)
-        O_arr = self.da1.getVecArray(self.O)
-
-        A_arr[xs:xe, ys:ye] = x_arr[xs:xe, ys:ye, 0]
-        J_arr[xs:xe, ys:ye] = x_arr[xs:xe, ys:ye, 1]
-        P_arr[xs:xe, ys:ye] = x_arr[xs:xe, ys:ye, 2]
-        O_arr[xs:xe, ys:ye] = x_arr[xs:xe, ys:ye, 3]
-        
-        # calculate B and V field
-        self.derivatives.dy(self.A, self.Bx, +1.)
-        self.derivatives.dx(self.A, self.By, -1.)
-        self.derivatives.dy(self.P, self.Vx, +1.)
-        self.derivatives.dx(self.P, self.Vy, -1.)
-        
-        
-        
-        self.hdf5_viewer(self.A)
-        self.hdf5_viewer(self.J)
-        self.hdf5_viewer(self.P)
-        self.hdf5_viewer(self.O)
-        
-        self.hdf5_viewer(self.Bx)
-        self.hdf5_viewer(self.By)
-        self.hdf5_viewer(self.Vx)
-        self.hdf5_viewer(self.Vy)
         if timestep % self.nsave == 0:
             if PETSc.COMM_WORLD.getRank() == 0:
                 self.time.setValue(0, self.ht*timestep)
             
+            # copy solution to A, J, psi, omega vectors
+            self.copy_x_from_da4_to_da1()
+            
+            # calculate B and V field
+            self.derivatives.dy(self.A, self.Bx, +1.)
+            self.derivatives.dx(self.A, self.By, -1.)
+            self.derivatives.dy(self.P, self.Vx, +1.)
+            self.derivatives.dx(self.P, self.Vy, -1.)
+            
             # save timestep
             self.hdf5_viewer.setTimestep(timestep // self.nsave)
             self.hdf5_viewer(self.time)
+            
+            self.hdf5_viewer(self.A)
+            self.hdf5_viewer(self.J)
+            self.hdf5_viewer(self.P)
+            self.hdf5_viewer(self.O)
+            
+            self.hdf5_viewer(self.Bx)
+            self.hdf5_viewer(self.By)
+            self.hdf5_viewer(self.Vx)
+            self.hdf5_viewer(self.Vy)
         
 
     def check_jacobian(self):
