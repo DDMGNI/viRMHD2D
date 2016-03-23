@@ -361,6 +361,8 @@ class rmhd2d(object):
         assert self.Lx == hdf5in.attrs["grid.Lx"]
         assert self.Ly == hdf5in.attrs["grid.Ly"]
         
+        assert self.de == hdf5in.attrs["initial_data.skin_depth"]
+        
         timestep = len(hdf5in["t"][...].flatten()) - 1
         
         hdf5in.close()
