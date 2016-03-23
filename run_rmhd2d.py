@@ -284,6 +284,15 @@ class rmhd2d(object):
             print("  hx = %f" % (self.hx))
             print("  hy = %f" % (self.hy))
             print("")
+            print("  PETSc SNES rtol = %e" % self.cfg['solver']['petsc_snes_rtol'])
+            print("             atol = %e" % self.cfg['solver']['petsc_snes_atol'])
+            print("             stol = %e" % self.cfg['solver']['petsc_snes_stol'])
+            print("         max iter = %i" % self.cfg['solver']['petsc_snes_max_iter'])
+            print("")
+            print("  PETSc KSP  rtol = %e" % self.cfg['solver']['petsc_ksp_rtol'])
+            print("             atol = %e" % self.cfg['solver']['petsc_ksp_atol'])
+            print("         max iter = %i" % self.cfg['solver']['petsc_ksp_max_iter'])
+            print("")
 
 
     def __del__(self):
