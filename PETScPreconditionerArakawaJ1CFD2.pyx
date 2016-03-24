@@ -139,7 +139,6 @@ cdef class PETScPreconditioner(object):
         self.parabol_ksp.setOperators(self.Qm)
         self.parabol_ksp.setType('cg')
         self.parabol_ksp.getPC().setType('none')
-#         self.parabol_ksp.setNormType(PETSc.NormType.NORM_NONE)
         self.parabol_ksp.setUp()
     
     
@@ -158,6 +157,8 @@ cdef class PETScPreconditioner(object):
             
         if parabol_rtol > 0.:
             self.parabol_ksp.setTolerances(rtol=parabol_rtol)
+        else:
+            self.parabol_ksp.setNormType(PETSc.NormType.NORM_NONE)
             
         if parabol_atol > 0.:
             self.parabol_ksp.setTolerances(atol=parabol_atol)
