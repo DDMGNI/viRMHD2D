@@ -83,6 +83,17 @@ class rmhd2d(object):
         # direct solver package
         self.solver_package = self.cfg['solver']['lu_solver_package']
         
+        # set some PETSc solver options
+        OptDB = PETSc.Options()
+        
+        OptDB.setValue('ksp_rtol',   self.cfg['solver']['petsc_ksp_rtol'])
+        OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
+        OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
+        
+        OptDB.setValue('pc_type', 'hypre')
+        OptDB.setValue('pc_hypre_type', 'boomeramg')
+        
+        
         # create DA with single dof
         self.da1 = PETSc.DA().create(dim=2, dof=1,
                                     sizes=[self.nx, self.ny],
@@ -199,6 +210,7 @@ class rmhd2d(object):
                                        max_it=self.cfg['solver']['poisson_ksp_max_iter'])
         self.poisson_ksp.setType('cg')
         self.poisson_ksp.getPC().setType('hypre')
+        self.poisson_ksp.setUp()
         
         self.petsc_poisson.formMat(self.Pm)
         

@@ -35,24 +35,21 @@ class rmhd2d_ppc(rmhd2d):
         
         
         OptDB = PETSc.Options()
-        
+         
 #         OptDB.setValue('ksp_monitor',  '')
 #         OptDB.setValue('snes_monitor', '')
 #         
 #         OptDB.setValue('log_info',    '')
 #         OptDB.setValue('log_summary', '')
-
-        OptDB.setValue('ksp_rtol',   self.cfg['solver']['petsc_ksp_rtol'])
-        OptDB.setValue('ksp_atol',   self.cfg['solver']['petsc_ksp_atol'])
-        OptDB.setValue('ksp_max_it', self.cfg['solver']['petsc_ksp_max_iter'])
+# 
 #         OptDB.setValue('ksp_initial_guess_nonzero', 1)
         
-        OptDB.setValue('pc_type', 'hypre')
-        OptDB.setValue('pc_hypre_type', 'boomeramg')
+#         OptDB.setValue('pc_type', 'hypre')
+#         OptDB.setValue('pc_hypre_type', 'boomeramg')
         OptDB.setValue('pc_hypre_boomeramg_max_iter', 2)
 #         OptDB.setValue('pc_hypre_boomeramg_max_levels', 6)
 #         OptDB.setValue('pc_hypre_boomeramg_tol',  1e-7)
-        
+
         
         # create Jacobian, Function, and linear Matrix objects
         self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
@@ -91,6 +88,7 @@ class rmhd2d_ppc(rmhd2d):
 #         self.ksp.setPC(self.pc)
 #         self.ksp.setPC(self.ksp.getPC().createPython(context=self.petsc_precon, comm=PETSc.COMM_WORLD))
 #         self.ksp.setPCSide(PETSc.KSP.PCSide.RIGHT)
+        self.ksp.setUp()
 
         
         # update solution history
