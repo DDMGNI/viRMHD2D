@@ -153,7 +153,7 @@ class rmhd2d_ppc(rmhd2d):
 #                 self.dy.set(0.)
                 self.b.copy(self.dy)
                 
-                if self.cfg['solver']['petsc_ksp_adapt_rol']:
+                if self.cfg['solver']['petsc_ksp_adapt_rtol']:
                     if i == 1:
                         zeta_A  = 0.
                         zeta_B  = 0.
