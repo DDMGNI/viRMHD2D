@@ -327,10 +327,10 @@ class PlotMHD2D(object):
         self.axes ["H"].set_xlim((xStart,xEnd)) 
         
         
-        if self.conts_A is not None:
-            for coll in self.conts_A.collections:
-                self.conts_A.collections.remove(coll)
-                 
+        for coll in self.conts_A.collections:
+            self.axes_A.collections.remove(coll)
+            
+        self.conts_A.collections = []     
         self.conts_A = self.axes_A.contour(self.x, self.y, self.A.T, 20, colors='k')
         
         
