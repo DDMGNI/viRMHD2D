@@ -61,6 +61,17 @@ class PlotMHD2D(object):
         self.y[0:-1] = self.diagnostics.yGrid
         self.y[  -1] = self.y[-2] + self.diagnostics.hy
         
+        self.xpc = np.zeros(diagnostics.nx+2)
+        self.ypc = np.zeros(diagnostics.ny+2)
+        
+        self.xpc[0:-1] = self.x
+        self.xpc[  -1] = self.xpc[-2] + self.diagnostics.hx
+        self.xpc[:] -= 0.5 * self.diagnostics.hx
+        
+        self.ypc[0:-1] = self.y
+        self.ypc[  -1] = self.ypc[-2] + self.diagnostics.hy
+        self.ypc[:] -= 0.5 * self.diagnostics.hy
+        
         self.A       = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
         self.X       = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
         self.O       = np.zeros((diagnostics.nx+1, diagnostics.ny+1))
@@ -121,10 +132,10 @@ class PlotMHD2D(object):
         self.axes["H"]     = plt.subplot(gs[3,5])
         
         
-        self.pcms["Bx"] = self.axes["Bx"].pcolormesh(self.x, self.y, self.Bx.T, norm=self.Bnorm)
-        self.pcms["By"] = self.axes["By"].pcolormesh(self.x, self.y, self.By.T, norm=self.Bnorm)
-        self.pcms["Vx"] = self.axes["Vx"].pcolormesh(self.x, self.y, self.Vx.T, norm=self.Vnorm)
-        self.pcms["Vy"] = self.axes["Vy"].pcolormesh(self.x, self.y, self.Vy.T, norm=self.Vnorm)
+        self.pcms["Bx"] = self.axes["Bx"].pcolormesh(self.xpc, self.ypc, self.Bx.T, norm=self.Bnorm)
+        self.pcms["By"] = self.axes["By"].pcolormesh(self.xpc, self.ypc, self.By.T, norm=self.Bnorm)
+        self.pcms["Vx"] = self.axes["Vx"].pcolormesh(self.xpc, self.ypc, self.Vx.T, norm=self.Vnorm)
+        self.pcms["Vy"] = self.axes["Vy"].pcolormesh(self.xpc, self.ypc, self.Vy.T, norm=self.Vnorm)
         
         self.axes["Bx"].set_title('$B_{x} (x,y)$')
         self.axes["By"].set_title('$B_{y} (x,y)$')
@@ -140,7 +151,7 @@ class PlotMHD2D(object):
         self.axes["Vy"].set_xlim((self.x[0], self.x[-1]))
         self.axes["Vy"].set_ylim((self.y[0], self.y[-1])) 
         
-        self.pcms["X"] = self.axes["X"].pcolormesh(self.x, self.y, self.X.T, cmap=plt.get_cmap('Paired'))
+        self.pcms["X"] = self.axes["X"].pcolormesh(self.xpc, self.ypc, self.X.T, cmap=plt.get_cmap('Paired'))
         
         self.axes["X"].set_title('$\psi_e (x,y)$')
         
@@ -183,22 +194,30 @@ class PlotMHD2D(object):
         # create psi figure
         self.figure2, self.axes_A = plt.subplots(num=2, figsize=(10,10))
         self.figure2.tight_layout()
-        self.conts_A = None
+        self.conts_A = self.axes_A.contour(self.x, self.y, self.A.T, 20, colors='k')
+        self.axes_A.set_xlim((self.x[0], self.x[-1]))
+        self.axes_A.set_ylim((self.y[0], self.y[-1]))
         
         # create psi_e figure
         self.figure3, self.axes_X = plt.subplots(num=3, figsize=(10,10))
         self.figure3.tight_layout()
-        self.pcms_X  = self.axes_X.pcolormesh(self.x, self.y, self.X.T, cmap=plt.get_cmap('Paired'))
+        self.pcms_X  = self.axes_X.pcolormesh(self.xpc, self.ypc, self.X.T, cmap=plt.get_cmap('Paired'))
+        self.axes_X.set_xlim((self.x[0], self.x[-1]))
+        self.axes_X.set_ylim((self.y[0], self.y[-1]))
         
         # create omega figure
         self.figure4, self.axes_O = plt.subplots(num=4, figsize=(10,10))
         self.figure4.tight_layout()
-        self.pcms_O  = self.axes_O.pcolormesh(self.x, self.y, self.O.T, cmap=plt.get_cmap('viridis'))
+        self.pcms_O  = self.axes_O.pcolormesh(self.xpc, self.ypc, self.O.T, cmap=plt.get_cmap('viridis'))
+        self.axes_O.set_xlim((self.x[0], self.x[-1]))
+        self.axes_O.set_ylim((self.y[0], self.y[-1]))
         
         # create phi figure
         self.figure5, self.axes_P = plt.subplots(num=5, figsize=(10,10))
         self.figure5.tight_layout()
-        self.pcms_P  = self.axes_P.pcolormesh(self.x, self.y, self.P.T, cmap=plt.get_cmap('viridis'))
+        self.pcms_P  = self.axes_P.pcolormesh(self.xpc, self.ypc, self.P.T, cmap=plt.get_cmap('viridis'))
+        self.axes_P.set_xlim((self.x[0], self.x[-1]))
+        self.axes_P.set_ylim((self.y[0], self.y[-1]))
         
         
         self.update()
@@ -274,34 +293,11 @@ class PlotMHD2D(object):
         self.read_data()
 #        self.update_boundaries()
 
-#         self.pcms["X" ].set_array(self.X.T.copy(order='F').ravel())
-#         self.pcms["Bx"].set_array(self.Bx.T.ravel())
-#         self.pcms["By"].set_array(self.By.T.ravel())
-#         self.pcms["Vx"].set_array(self.Vx.T.ravel())
-#         self.pcms["Vy"].set_array(self.Vy.T.ravel())
-        
-        self.axes["X" ].cla()
-        self.axes["Bx"].cla()
-        self.axes["By"].cla()
-        self.axes["Vx"].cla()
-        self.axes["Vy"].cla()
-
-        self.axes["X" ].pcolormesh(self.x, self.y, self.X.T, cmap=plt.get_cmap('Paired'))#, norm=self.Xnorm
-        self.axes["Bx"].pcolormesh(self.x, self.y, self.Bx.T, norm=self.Bnorm)
-        self.axes["By"].pcolormesh(self.x, self.y, self.By.T, norm=self.Bnorm)
-        self.axes["Vx"].pcolormesh(self.x, self.y, self.Vx.T, norm=self.Vnorm)
-        self.axes["Vy"].pcolormesh(self.x, self.y, self.Vy.T, norm=self.Vnorm)
-
-        self.axes["X" ].set_xlim((self.x[0], self.x[-1]))
-        self.axes["X" ].set_ylim((self.y[0], self.y[-1]))
-        self.axes["Bx"].set_xlim((self.x[0], self.x[-1]))
-        self.axes["Bx"].set_ylim((self.y[0], self.y[-1]))
-        self.axes["By"].set_xlim((self.x[0], self.x[-1]))
-        self.axes["By"].set_ylim((self.y[0], self.y[-1]))
-        self.axes["Vx"].set_xlim((self.x[0], self.x[-1]))
-        self.axes["Vx"].set_ylim((self.y[0], self.y[-1]))
-        self.axes["Vy"].set_xlim((self.x[0], self.x[-1]))
-        self.axes["Vy"].set_ylim((self.y[0], self.y[-1]))
+        self.pcms["X" ].set_array(self.X.T.ravel())
+        self.pcms["Bx"].set_array(self.Bx.T.ravel())
+        self.pcms["By"].set_array(self.By.T.ravel())
+        self.pcms["Vx"].set_array(self.Vx.T.ravel())
+        self.pcms["Vy"].set_array(self.Vy.T.ravel())
         
         
         tStart, tEnd, xStart, xEnd = self.get_timerange()
@@ -331,30 +327,16 @@ class PlotMHD2D(object):
         self.axes ["H"].set_xlim((xStart,xEnd)) 
         
         
-#         if self.conts_A is not None:
-#             for coll in self.conts_A.collections:
-#                 self.conts_A.collections.remove(coll)
-#                 
-        self.axes_A.cla()
+        if self.conts_A is not None:
+            for coll in self.conts_A.collections:
+                self.conts_A.collections.remove(coll)
+                 
         self.conts_A = self.axes_A.contour(self.x, self.y, self.A.T, 20, colors='k')
-        self.axes_A.set_xlim((self.x[0], self.x[-1]))
-        self.axes_A.set_ylim((self.y[0], self.y[-1]))    
         
         
-        self.axes_X.cla()
-        self.axes_X.pcolormesh(self.x, self.y, self.X.T, cmap=plt.get_cmap('Paired'))
-        self.axes_X.set_xlim((self.x[0], self.x[-1]))
-        self.axes_X.set_ylim((self.y[0], self.y[-1]))    
-        
-        self.axes_O.cla()
-        self.axes_O.pcolormesh(self.x, self.y, self.O.T, cmap=plt.get_cmap('viridis'))
-        self.axes_O.set_xlim((self.x[0], self.x[-1]))
-        self.axes_O.set_ylim((self.y[0], self.y[-1]))    
-        
-        self.axes_P.cla()
-        self.axes_P.pcolormesh(self.x, self.y, self.P.T, cmap=plt.get_cmap('viridis'))
-        self.axes_P.set_xlim((self.x[0], self.x[-1]))
-        self.axes_P.set_ylim((self.y[0], self.y[-1]))    
+        self.pcms_X.set_array(self.X.T.ravel())
+        self.pcms_O.set_array(self.O.T.ravel())
+        self.pcms_P.set_array(self.P.T.ravel())
         
         
         for i in range(5):
