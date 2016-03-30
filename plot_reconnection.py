@@ -201,21 +201,21 @@ class PlotMHD2D(object):
         # create psi_e figure
         self.figure3, self.axes_X = plt.subplots(num=3, figsize=(10,10))
         self.figure3.tight_layout()
-        self.pcms_X  = self.axes_X.pcolormesh(self.xpc, self.ypc, self.X.T, cmap=plt.get_cmap('Paired'))
+        self.pcms_X = self.axes_X.pcolormesh(self.xpc, self.ypc, self.X.T, cmap=plt.get_cmap('Paired'))
         self.axes_X.set_xlim((self.x[0], self.x[-1]))
         self.axes_X.set_ylim((self.y[0], self.y[-1]))
         
         # create omega figure
         self.figure4, self.axes_O = plt.subplots(num=4, figsize=(10,10))
         self.figure4.tight_layout()
-        self.pcms_O  = self.axes_O.pcolormesh(self.xpc, self.ypc, self.O.T, cmap=plt.get_cmap('viridis'))
+        self.pcms_O = self.axes_O.pcolormesh(self.xpc, self.ypc, self.O.T, cmap=plt.get_cmap('viridis'))
         self.axes_O.set_xlim((self.x[0], self.x[-1]))
         self.axes_O.set_ylim((self.y[0], self.y[-1]))
         
         # create phi figure
         self.figure5, self.axes_P = plt.subplots(num=5, figsize=(10,10))
         self.figure5.tight_layout()
-        self.pcms_P  = self.axes_P.pcolormesh(self.xpc, self.ypc, self.P.T, cmap=plt.get_cmap('viridis'))
+        self.pcms_P = self.axes_P.pcolormesh(self.xpc, self.ypc, self.P.T, cmap=plt.get_cmap('viridis'))
         self.axes_P.set_xlim((self.x[0], self.x[-1]))
         self.axes_P.set_ylim((self.y[0], self.y[-1]))
         
@@ -255,16 +255,16 @@ class PlotMHD2D(object):
         self.A [  -1, 0:-1] = self.diagnostics.A [0,:]
         self.A [   :,   -1] = self.A[:,0]
         
-        self.X [0:-1, 0:-1] =-self.diagnostics.X [:,:]
-        self.X [  -1, 0:-1] =-self.diagnostics.X [0,:]
+        self.X [0:-1, 0:-1] = self.diagnostics.X [:,:]
+        self.X [  -1, 0:-1] = self.diagnostics.X [0,:]
         self.X [   :,   -1] = self.X[:,0]
         
-        self.O [0:-1, 0:-1] =-self.diagnostics.O [:,:]
-        self.O [  -1, 0:-1] =-self.diagnostics.O [0,:]
+        self.O [0:-1, 0:-1] = self.diagnostics.O [:,:]
+        self.O [  -1, 0:-1] = self.diagnostics.O [0,:]
         self.O [   :,   -1] = self.O[:,0]
         
-        self.P [0:-1, 0:-1] =-self.diagnostics.P [:,:]
-        self.P [  -1, 0:-1] =-self.diagnostics.P [0,:]
+        self.P [0:-1, 0:-1] = self.diagnostics.P [:,:]
+        self.P [  -1, 0:-1] = self.diagnostics.P [0,:]
         self.P [   :,   -1] = self.P[:,0]
         
         self.Bx[0:-1, 0:-1] = self.diagnostics.Bx[:,:]
