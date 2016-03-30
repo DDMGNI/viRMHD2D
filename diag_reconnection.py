@@ -6,12 +6,14 @@ Created on Apr 06, 2012
 
 #import StringIO
 import argparse
-import numpy as np
+# import numpy as np
+import h5py
 
-import matplotlib.animation as animation
+import matplotlib
+matplotlib.use('AGG')
 
 from diagnostics import Diagnostics 
-from plot_replay_reconnection import PlotMHD2D
+from plot_reconnection import PlotMHD2D
 
 
 class replay(object):
@@ -19,7 +21,7 @@ class replay(object):
     
     '''
 
-    def __init__(self, hdf5_file, nPlot=1):
+    def __init__(self, hdf5_file, nPlot=1, output=0):
         '''
         Constructor
         '''
@@ -27,34 +29,28 @@ class replay(object):
         self.diagnostics = Diagnostics(hdf5_file)
         
         self.nPlot = nPlot
-        self.plot  = PlotMHD2D(self.diagnostics, self.diagnostics.nt, nPlot)
+        self.plot  = PlotMHD2D(self.diagnostics, self.diagnostics.nt, nPlot, output)
         
     
     def init(self):
         self.update(0)
     
     
-    def update(self, itime, final=False):
+    def update(self, itime):
+        print(itime)
         self.diagnostics.read_from_hdf5(itime)
         self.diagnostics.update_invariants(itime)
         
         if itime > 0:
             self.plot.add_timepoint()
         
-        return self.plot.update(final=final)
+        self.plot.update()
     
     
     def run(self):
         for itime in range(1, self.diagnostics.nt+1):
-            self.update(itime, final=(itime == self.diagnostics.nt))
+            self.update(itime)
         
-    
-    def movie(self, outfile, fps=1):
-        self.plot.nPlot = 1
-        
-        ani = animation.FuncAnimation(self.plot.figure, self.update, np.arange(1, self.diagnostics.nt+1), 
-                                      init_func=self.init, repeat=False, blit=True)
-        ani.save(outfile, fps=fps)
     
 
 if __name__ == '__main__':
@@ -63,8 +59,8 @@ if __name__ == '__main__':
     parser.add_argument('hdf5_file', metavar='<run.hdf5>', type=str,
                         help='Run HDF5 File')
     parser.add_argument('-np', metavar='i', type=int, default=1,
-                        help='plot_replay every i\'th frame')    
-    parser.add_argument('-o', metavar='<run.mp4>', type=str, default=None,
+                        help='plot every i\'th frame')    
+    parser.add_argument('-o', metavar='0', type=int, default=0,
                         help='output video file')    
     
     args = parser.parse_args()
@@ -73,16 +69,8 @@ if __name__ == '__main__':
     print("Replay run with " + args.hdf5_file)
     print
     
-    pyvp = replay(args.hdf5_file, args.np)
-    
-    print
-    input('Hit any key to start replay.')
-    print
-    
-    if args.o != None:
-        pyvp.movie(args.o, args.np)
-    else:
-        pyvp.run()
+    pyvp = replay(args.hdf5_file, args.np, args.o)
+    pyvp.run()
     
     print
     print("Replay finished.")
