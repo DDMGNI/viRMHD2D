@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.animation as animation
 
 from diagnostics_staggered import Diagnostics 
-from plot import PlotMHD2D
+from plot_replay import PlotMHD2D
 
 
 class replay(object):
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('hdf5_file', metavar='<run.hdf5>', type=str,
                         help='Run HDF5 File')
     parser.add_argument('-np', metavar='i', type=int, default=1,
-                        help='plot every i\'th frame')    
+                        help='plot_replay every i\'th frame')    
     parser.add_argument('-o', metavar='<run.mp4>', type=str, default=None,
                         help='output video file')    
     
