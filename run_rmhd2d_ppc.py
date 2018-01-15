@@ -13,11 +13,11 @@ import time
 
 from petsc4py import PETSc
 
-from PETScDerivatives                    import PETScDerivatives
-from PETScPoissonCFD2                    import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2   import PETScSolver
-# from PETScPreconditionerArakawaJ1CFD2    import PETScPreconditioner
-from PETScPreconditionerArakawaJ1CFD2Vec import PETScPreconditioner
+from rmhd.solvers.common.PETScDerivatives                                import PETScDerivatives
+from rmhd.solvers.linear.PETScPoissonCFD2                                import PETScPoisson
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2            import PETScSolver
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2DB          import PETScSolverDB
+from rmhd.solvers.preconditioner.PETScPreconditionerArakawaJ1CFD2DOF2Vec import PETScPreconditioner
 
 
 class rmhd2d_ppc(rmhd2d):
@@ -52,23 +52,31 @@ class rmhd2d_ppc(rmhd2d):
 
         
         # create Jacobian, Function, and linear Matrix objects
-        self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
-        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de, self.petsc_precon)
-        
-        
-        self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
-                                         poisson_atol=self.cfg['solver']['pc_poisson_atol'],
-                                         poisson_max_it=self.cfg['solver']['pc_poisson_max_iter'],
-                                         parabol_rtol=self.cfg['solver']['pc_parabol_rtol'],
-                                         parabol_atol=self.cfg['solver']['pc_parabol_atol'],
-                                         parabol_max_it=self.cfg['solver']['pc_parabol_max_iter'],
-                                         jacobi_max_it=self.cfg['solver']['pc_jacobi_max_iter'])
+        if self.cfg["solver"]["preconditioner"] == 'none' or self.cfg["solver"]["preconditioner"] == None:
+            self.petsc_precon   = None
+        else:
+            self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
+
+            self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
+                                             poisson_atol=self.cfg['solver']['pc_poisson_atol'],
+                                             poisson_max_it=self.cfg['solver']['pc_poisson_max_iter'],
+                                             parabol_rtol=self.cfg['solver']['pc_parabol_rtol'],
+                                             parabol_atol=self.cfg['solver']['pc_parabol_atol'],
+                                             parabol_max_it=self.cfg['solver']['pc_parabol_max_iter'],
+                                             jacobi_max_it=self.cfg['solver']['pc_jacobi_max_iter'])
+            
+        if self.nu != 0.:
+            self.petsc_solver   = PETScSolverDB(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de, self.petsc_precon, self.nu)
+        else:
+            self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de, self.petsc_precon)
+            
         
         # initialise matrixfree Jacobian
         self.Jmf = PETSc.Mat().createPython([self.x.getSizes(), self.b.getSizes()], 
                                             context=self.petsc_solver,
                                             comm=PETSc.COMM_WORLD)
         self.Jmf.setUp()
+#         self.Jmf.setNullSpace(self.solver_nullspace)
         
         # create PC shell
 #         self.pc = PETSc.PC().createPython(context=self.petsc_precon,
@@ -93,7 +101,6 @@ class rmhd2d_ppc(rmhd2d):
         
         # update solution history
         self.petsc_solver.update_previous(self.x)
-        
         
         
     
@@ -148,8 +155,11 @@ class rmhd2d_ppc(rmhd2d):
                 
                 self.f.copy(self.b)
                 self.b.scale(-1.)
-#                 self.dy.set(0.)
-                self.b.copy(self.dy)
+                
+                if self.petsc_precon == None:
+                    self.dx.set(0.)
+                else:
+                    self.b.copy(self.dy)
                 
                 if self.cfg['solver']['petsc_ksp_adapt_rtol']:
                     if i == 1:
@@ -168,9 +178,12 @@ class rmhd2d_ppc(rmhd2d):
                     self.ksp.setTolerances(rtol=ksp_tol)
                 
                 # solve linear system
-                self.ksp.solve(self.b, self.dy)
                 
-                self.petsc_precon.solve(self.dy, self.dx)
+                if self.petsc_precon == None:
+                    self.ksp.solve(self.b, self.dx)
+                else:
+                    self.ksp.solve(self.b, self.dy)
+                    self.petsc_precon.solve(self.dy, self.dx)
                 
                 self.x.axpy(1., self.dx)
                 

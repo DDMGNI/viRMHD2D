@@ -10,9 +10,9 @@ from petsc4py import PETSc
 
 import time
 
-from PETScDerivatives                  import PETScDerivatives
-from PETScPoissonCFD2                  import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
+from rmhd.solvers.common.PETScDerivatives                     import PETScDerivatives
+from rmhd.solvers.linear.PETScPoissonCFD2                     import PETScPoisson
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
 
 
 class rmhd2d_lu(rmhd2d):

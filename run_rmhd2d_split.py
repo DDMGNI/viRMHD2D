@@ -13,11 +13,11 @@ import time
 
 from petsc4py import PETSc
 
-from PETScDerivatives                        import PETScDerivatives
-from PETScPoissonCFD2                        import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2       import PETScSolver
-from PETScNonlinearSolverArakawaJ1CFD2DOF2   import PETScSolverDOF2
-from PETScPreconditionerArakawaJ1CFD2DOF2Vec import PETScPreconditioner
+from rmhd.solvers.common.PETScDerivatives                                import PETScDerivatives
+from rmhd.solvers.linear.PETScPoissonCFD2                                import PETScPoisson
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2            import PETScSolver
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2DOF2        import PETScSolverDOF2
+from rmhd.solvers.preconditioner.PETScPreconditionerArakawaJ1CFD2DOF2Vec import PETScPreconditioner
 
 
 class rmhd2d_split(rmhd2d):

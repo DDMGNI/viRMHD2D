@@ -5,6 +5,7 @@ Created on 21.03.2016
 '''
 
 import sys, petsc4py
+from importlib import import_module
 
 from petsc4py import PETSc
 
@@ -14,10 +15,10 @@ import numpy as np
 import argparse, datetime, time
 import pstats, cProfile
 
-from config import Config
+from rmhd.config.config import Config
 
-from PETScDerivatives                    import PETScDerivatives
-from PETScPoissonCFD2                    import PETScPoisson
+from rmhd.solvers.common.PETScDerivatives import PETScDerivatives
+from rmhd.solvers.linear.PETScPoissonCFD2 import PETScPoisson
 
 
 class rmhd2d(object):
@@ -76,6 +77,9 @@ class rmhd2d(object):
         
         # electron skin depth
         self.de = self.cfg['initial_data']['skin_depth']
+        
+        # double bracket dissipation
+        self.nu = self.cfg['initial_data']['dissipation']
         
         # set global tolerance
         self.tolerance = self.cfg['solver']['petsc_snes_atol'] * self.nx * self.ny
@@ -255,7 +259,7 @@ class rmhd2d(object):
         hdf5out.attrs["solver.solver_mode"] = self.mode
         
         if self.cfg["initial_data"]["python"] != None and self.cfg["initial_data"]["python"] != "":
-            python_input = open("runs/" + self.cfg['initial_data']['python'] + ".py", 'r')
+            python_input = open("examples/" + self.cfg['initial_data']['python'] + ".py", 'r')
             python_file = python_input.read()
             python_input.close()
         else:
@@ -319,10 +323,11 @@ class rmhd2d(object):
 
     
     def read_initial_data_from_python(self):
-        python_module = "runs." + self.cfg['initial_data']['python']
+        python_module = "examples." + self.cfg['initial_data']['python']
         
         if PETSc.COMM_WORLD.getRank() == 0:
             print("  Input:  %s" % python_module)
+            print("")
         
         # get whole grid
         xGrid, yGrid = self.get_coordinate_vectors_from_das()
@@ -330,46 +335,88 @@ class rmhd2d(object):
         # set initial data
         (xs, xe), (ys, ye) = self.da1.getRanges()
         
-        x_arr = self.da4.getVecArray(self.x)
-        A_arr = self.da1.getVecArray(self.A)
-        P_arr = self.da1.getVecArray(self.P)
+        init_data = import_module(python_module)
         
-        init_data = __import__(python_module, globals(), locals(), ['magnetic_A', 'velocity_P'], 0)
+        if hasattr(init_data, 'magnetic_A'):
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Computing magnetic potential from initial data.")
+            
+            A_arr = self.da1.getVecArray(self.A)
+            
+            for i in range(xs, xe):
+                for j in range(ys, ye):
+                    A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], self.Lx, self.Ly)
         
-        for i in range(xs, xe):
-            for j in range(ys, ye):
-                A_arr[i,j] = init_data.magnetic_A(xGrid[i], yGrid[j], self.Lx, self.Ly)
-                P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], self.Lx, self.Ly)
-                
-        # apply Fourier filtering to magnetic potential 
-        self.fourier_filter_magnetic_potential()
+            # apply Fourier filtering to magnetic potential 
+            self.fourier_filter_magnetic_potential()
+            
+            # compute current density
+            self.derivatives.laplace_vec(self.A, self.J, -1.)
         
-        # compute current and vorticity
-        self.derivatives.laplace_vec(self.A, self.J, -1.)
-        self.derivatives.laplace_vec(self.P, self.O, -1.)
+        elif hasattr(init_data, 'magnetic_J'):
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Computing current density from initial data.")
+            
+            J_arr = self.da1.getVecArray(self.J)
+            
+            for i in range(xs, xe):
+                for j in range(ys, ye):
+                    J_arr[i,j] = init_data.magnetic_J(xGrid[i], yGrid[j], self.Lx, self.Ly)
+            
+            # solve for consistent initial magnetic potential
+            self.A.set(0.)
+            self.petsc_poisson.formRHS(self.J, self.Pb)
+            self.poisson_nullspace.remove(self.Pb)
+            self.poisson_ksp.solve(self.Pb, self.A)
         
-        J_arr = self.da1.getVecArray(self.J)
-        O_arr = self.da1.getVecArray(self.O)
-        
-        # add perturbations
-        for i in range(xs, xe):
-            for j in range(ys, ye):
-                J_arr[i,j] += init_data.current_perturbation(  xGrid[i], yGrid[j], self.Lx, self.Ly)
-                O_arr[i,j] += init_data.vorticity_perturbation(xGrid[i], yGrid[j], self.Lx, self.Ly)
+            self.derivatives.laplace_vec(self.A, self.J, -1.)
+            
+        else:
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  WARNING: Neither magnetic potential nor current density given in initial data.")
         
         
-        # solve for consistent initial A
-        self.A.set(0.)
-        self.petsc_poisson.formRHS(self.J, self.Pb)
-        self.poisson_nullspace.remove(self.Pb)
-        self.poisson_ksp.solve(self.Pb, self.A)
+        if hasattr(init_data, 'velocity_P'):
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Computing streaming function from initial data.")
+            
+            P_arr = self.da1.getVecArray(self.P)
+            
+            for i in range(xs, xe):
+                for j in range(ys, ye):
+                    P_arr[i,j] = init_data.velocity_P(xGrid[i], yGrid[j], self.Lx, self.Ly)
+            
+            # remmove nullspace
+            self.poisson_nullspace.remove(self.P)
+            
+            # compute vorticity
+            self.derivatives.laplace_vec(self.P, self.O, -1.)
         
-        # solve for consistent initial psi
-        self.P.set(0.)
-        self.petsc_poisson.formRHS(self.O, self.Pb)
-        self.poisson_nullspace.remove(self.Pb)
-        self.poisson_ksp.solve(self.Pb, self.P)
-    
+        elif hasattr(init_data, 'velocity_O'):
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  Computing vorticity from initial data.")
+            
+            O_arr = self.da1.getVecArray(self.O)
+            
+            for i in range(xs, xe):
+                for j in range(ys, ye):
+                    O_arr[i,j] = init_data.velocity_O(xGrid[i], yGrid[j], self.Lx, self.Ly)
+            
+            self.poisson_nullspace.remove(self.O)
+            
+            # solve for consistent initial streaming function
+            self.P.set(0.)
+            self.petsc_poisson.formRHS(self.O, self.Pb)
+            self.poisson_nullspace.remove(self.Pb)
+            self.poisson_ksp.solve(self.Pb, self.P)
+        
+        else:
+            if PETSc.COMM_WORLD.getRank() == 0:
+                print("  WARNING: Neither streaming function nor vorticity given in initial data.")
+        
+        if PETSc.COMM_WORLD.getRank() == 0:
+            print("")
+        
     
     def read_initial_data_from_hdf5(self):
         hdf5_filename = self.cfg["io"]["hdf5_input"]

@@ -1,0 +1,3 @@
+
+export PETSC_DIR=/Users/mkraus/Development/Libraries/petsc-3.6.3-production
+export PETSC_ARCH=arch-darwin-c-opt

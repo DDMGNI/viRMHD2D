@@ -1,11 +1,12 @@
 
+PYTHONPATH := $(CURDIR):${PYTHONPATH}
+export PYTHONPATH
+
 
 all:
-	python setup.py build_ext --inplace
-
+	$(MAKE) -C rmhd
+	
 
 clean:
-	rm -f *.c
-	rm -f *.so
-	rm -fR build
+	$(MAKE) clean -C rmhd
 

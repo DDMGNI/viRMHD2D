@@ -10,9 +10,10 @@ from petsc4py import PETSc
 
 import time
 
-from PETScDerivatives                  import PETScDerivatives
-from PETScPoissonCFD2                  import PETScPoisson
-from PETScNonlinearSolverArakawaJ1CFD2 import PETScSolver
+from rmhd.solvers.common.PETScDerivatives                                import PETScDerivatives
+from rmhd.solvers.linear.PETScPoissonCFD2                                import PETScPoisson
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2            import PETScSolver
+from rmhd.solvers.nonlinear.PETScNonlinearSolverArakawaJ1CFD2DB          import PETScSolverDB
 
 
 class rmhd2d_asm(rmhd2d):
@@ -61,7 +62,10 @@ class rmhd2d_asm(rmhd2d):
         
         
         # create Jacobian, Function, and linear Matrix objects
-        self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
+        if self.nu != 0.:
+            self.petsc_solver   = PETScSolverDB(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de, nu=self.nu)
+        else:
+            self.petsc_solver   = PETScSolver(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
         
         
         # initialise linear matrix
