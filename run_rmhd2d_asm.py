@@ -45,7 +45,7 @@ class rmhd2d_asm(rmhd2d):
         OptDB.setValue('pc_asm_overlap', 3)
         OptDB.setValue('sub_ksp_type', 'preonly')
         OptDB.setValue('sub_pc_type', 'lu')
-        OptDB.setValue('sub_pc_factor_mat_solver_package', self.solver_package)
+        OptDB.setValue('sub_pc_factor_mat_solver_type', self.solver_package)
         
         OptDB.setValue('snes_rtol',   self.cfg['solver']['petsc_snes_rtol'])
         OptDB.setValue('snes_atol',   self.cfg['solver']['petsc_snes_atol'])

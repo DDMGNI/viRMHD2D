@@ -82,7 +82,7 @@ class rmhd2d_lu(rmhd2d):
         self.snes.setFromOptions()
         self.snes.getKSP().setType('preonly')
         self.snes.getKSP().getPC().setType('lu')
-        self.snes.getKSP().getPC().setFactorSolverPackage(self.solver_package)
+        self.snes.getKSP().getPC().setFactorSolverType(self.solver_package)
 
         # update solution history
         self.petsc_solver.update_previous(self.x)

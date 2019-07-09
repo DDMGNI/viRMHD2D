@@ -190,9 +190,9 @@ class rmhd2d_split(rmhd2d):
                 else:
                     zeta_A  = gamma * np.power(pred_norm / prev_norm , alpha)
                     zeta_B  = np.power(ksp_tol, alpha)
-                    zeta_C  = np.min([ksp_max, np.max(zeta_A, zeta_B)])
+                    zeta_C  = min(ksp_max, max(zeta_A, zeta_B))
                     zeta_D  = gamma * tolerance / pred_norm
-                    ksp_tol = np.min([ksp_max, np.max(zeta_C, zeta_D)])
+                    ksp_tol = min(ksp_max, max(zeta_C, zeta_D))
 #                     self.ksp.setTolerances(rtol=ksp_tol, max_it=5)
                 
 #                 self.ksp.setTolerances(rtol=ksp_tol)

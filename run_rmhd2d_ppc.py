@@ -55,7 +55,7 @@ class rmhd2d_ppc(rmhd2d):
         if self.cfg["solver"]["preconditioner"] == 'none' or self.cfg["solver"]["preconditioner"] == None:
             self.petsc_precon   = None
         else:
-            self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy, self.de)
+            self.petsc_precon   = PETScPreconditioner(self.da1, self.da4, self.nx, self.ny, self.ht, self.hx, self.hy)#, self.de)
 
             self.petsc_precon.set_tolerances(poisson_rtol=self.cfg['solver']['pc_poisson_rtol'],
                                              poisson_atol=self.cfg['solver']['pc_poisson_atol'],
